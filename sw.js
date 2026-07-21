@@ -1,11 +1,12 @@
 /* Service Worker: macht ShopList offline nutzbar. */
-const CACHE = 'shoplist-v1';
+const CACHE = 'shoplist-v2';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/db.js',
   './js/stats.js',
+  './js/sync.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
@@ -30,6 +31,9 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) return;
+  // Sync- und Health-Endpunkte niemals cachen – die App behandelt
+  // Fehlschläge selbst (Offline-Modus).
+  if (new URL(request.url).pathname.includes('/api/')) return;
 
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then(cached => {

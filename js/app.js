@@ -1,4 +1,5 @@
-/* ShopList – Einkaufsliste mit Fotos, Kassenbons und Ausgaben-Statistik. */
+/* ShopList – Einkaufsliste mit Fotos, Kassenbons, Ausgaben-Statistik,
+ * optionalem Heimserver-Sync und KI-Automatik (Ollama). */
 (() => {
   'use strict';
 
@@ -16,6 +17,7 @@
   const modalRoot = document.getElementById('modal-root');
   const headerAction = document.getElementById('header-action');
   const screenTitle = document.getElementById('screen-title');
+  const syncDot = document.getElementById('sync-dot');
 
   const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
   const DATE_FMT = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -54,6 +56,11 @@
     if (!cleaned) return null;
     const n = parseFloat(cleaned);
     return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+  }
+
+  function displayName(p) {
+    if (p.name) return p.name;
+    return p.aiStatus === 'pending' ? 'Wird erkannt…' : 'Unbenanntes Produkt';
   }
 
   let objectURLs = [];
@@ -107,15 +114,20 @@
     }
   }
 
+  const aiOn = () => Sync.state.enabled;
+
   /* ---------- Daten ---------- */
 
   async function loadData() {
-    [products, purchases, receipts] = await Promise.all([
+    const [allProducts, allPurchases, allReceipts] = await Promise.all([
       DB.getAll('products'),
       DB.getAll('purchases'),
       DB.getAll('receipts'),
     ]);
-    products.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    products = allProducts.filter(p => !p.deleted);
+    purchases = allPurchases.filter(p => !p.deleted);
+    receipts = allReceipts.filter(r => !r.deleted);
+    products.sort((a, b) => displayName(a).localeCompare(displayName(b), 'de'));
     purchases.sort((a, b) => a.date.localeCompare(b.date));
     receipts.sort((a, b) => b.date.localeCompare(a.date));
   }
@@ -123,14 +135,14 @@
   function purchasesByProduct() {
     const map = new Map();
     for (const p of purchases) {
-      if (!map.has(p.productId)) map.set(p.productId, []);
-      map.get(p.productId).push(p);
+      if (!map.has(p.productUid)) map.set(p.productUid, []);
+      map.get(p.productUid).push(p);
     }
     return map;
   }
 
-  function productById(id) {
-    return products.find(p => p.id === id);
+  function productByUid(uid) {
+    return products.find(p => p.uid === uid);
   }
 
   /* ---------- Rendern ---------- */
@@ -139,7 +151,10 @@
     revokeURLs();
     closeSheet();
     await loadData();
+    renderView();
+  }
 
+  function renderView() {
     screenTitle.textContent = TITLES[state.tab];
     headerAction.hidden = state.tab === 'stats';
     document.querySelectorAll('.tab').forEach(t => {
@@ -152,12 +167,48 @@
     else renderStats();
   }
 
+  // Nach einem Sync-Pull: Daten neu laden und die Ansicht im Hintergrund
+  // aktualisieren, ohne ein offenes Sheet zu schließen.
+  async function refreshAfterSync() {
+    await loadData();
+    renderView();
+  }
+
+  function updateSyncDot(s) {
+    syncDot.hidden = false;
+    let cls = 'off', title = 'Kein Server erreichbar – App läuft lokal';
+    if (s.enabled) {
+      if (s.syncing) { cls = 'busy'; title = 'Synchronisiert…'; }
+      else if (s.lastError) { cls = 'err'; title = `Sync-Fehler: ${s.lastError}`; }
+      else {
+        cls = 'ok';
+        title = 'Mit Heimserver verbunden';
+        if (s.ai && s.ai.status && s.ai.status !== 'ready') {
+          cls = 'busy';
+          title = s.ai.status === 'pulling'
+            ? 'KI-Modell wird heruntergeladen…'
+            : 'KI (Ollama) nicht erreichbar – Sync läuft trotzdem';
+        }
+      }
+    }
+    syncDot.className = `sync-dot ${cls}`;
+    syncDot.title = title;
+  }
+
   /* ----- Einkaufsliste ----- */
+
+  function productSub(p, stats) {
+    if (p.aiStatus === 'pending' && !p.name) return '🤖 KI erkennt das Produkt…';
+    if (stats.lastPrice != null) {
+      return `Zuletzt ${fmtEUR(stats.lastPrice)}${stats.avgIntervalDays ? ` · hält ~${fmtDays(stats.avgIntervalDays)}` : ''}`;
+    }
+    return 'Noch kein Preis erfasst';
+  }
 
   function renderList() {
     const byProduct = purchasesByProduct();
     const items = products.filter(p => p.onList);
-    items.sort((a, b) => (a.checked - b.checked) || a.name.localeCompare(b.name, 'de'));
+    items.sort((a, b) => (a.checked - b.checked) || displayName(a).localeCompare(displayName(b), 'de'));
     const others = products.filter(p => !p.onList);
     const checkedCount = items.filter(p => p.checked).length;
 
@@ -172,17 +223,14 @@
         </div>`;
     } else {
       html += `<div class="card">` + items.map(p => {
-        const stats = Stats.productStats(byProduct.get(p.id) || []);
-        const sub = stats.lastPrice != null
-          ? `Zuletzt ${fmtEUR(stats.lastPrice)}${stats.avgIntervalDays ? ` · hält ~${fmtDays(stats.avgIntervalDays)}` : ''}`
-          : 'Noch kein Preis erfasst';
+        const stats = Stats.productStats(byProduct.get(p.uid) || []);
         return `
-          <div class="row ${p.checked ? 'done' : ''}" data-action="open-product" data-id="${p.id}">
-            <button class="check ${p.checked ? 'checked' : ''}" data-action="toggle-check" data-id="${p.id}" aria-label="Abhaken"></button>
+          <div class="row ${p.checked ? 'done' : ''}" data-action="open-product" data-id="${p.uid}">
+            <button class="check ${p.checked ? 'checked' : ''}" data-action="toggle-check" data-id="${p.uid}" aria-label="Abhaken"></button>
             ${thumbHTML(p.photo, '🧺')}
             <div class="row-main">
-              <div class="row-title">${esc(p.name)}</div>
-              <div class="row-sub">${sub}</div>
+              <div class="row-title">${esc(displayName(p))}</div>
+              <div class="row-sub">${productSub(p, stats)}</div>
             </div>
           </div>`;
       }).join('') + `</div>`;
@@ -190,10 +238,10 @@
 
     if (others.length) {
       html += `<div class="section-label">Wieder kaufen?</div><div class="card">` + others.map(p => `
-        <div class="row" data-action="open-product" data-id="${p.id}">
+        <div class="row" data-action="open-product" data-id="${p.uid}">
           ${thumbHTML(p.photo, '📦')}
-          <div class="row-main"><div class="row-title">${esc(p.name)}</div></div>
-          <button class="icon-btn" data-action="quick-add" data-id="${p.id}" aria-label="Auf die Liste">
+          <div class="row-main"><div class="row-title">${esc(displayName(p))}</div></div>
+          <button class="icon-btn" data-action="quick-add" data-id="${p.uid}" aria-label="Auf die Liste">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           </button>
         </div>`).join('') + `</div>`;
@@ -225,9 +273,10 @@
     }
 
     view.innerHTML = `<div class="card">` + products.map(p => {
-      const stats = Stats.productStats(byProduct.get(p.id) || []);
+      const stats = Stats.productStats(byProduct.get(p.uid) || []);
       let sub;
-      if (!stats.count) sub = 'Noch keine Käufe erfasst';
+      if (p.aiStatus === 'pending' && !p.name) sub = '🤖 KI erkennt das Produkt…';
+      else if (!stats.count) sub = 'Noch keine Käufe erfasst';
       else {
         const parts = [`${stats.count} ${stats.count === 1 ? 'Kauf' : 'Käufe'}`];
         if (stats.avgPrice != null) parts.push(`Ø ${fmtEUR(stats.avgPrice)}`);
@@ -238,10 +287,10 @@
         ? `<div class="row-end">≈ ${fmtEUR(stats.costPerMonth)}<br><span style="font-size:11px;color:var(--text-3)">pro Monat</span></div>`
         : (p.onList ? `<div class="row-end" style="color:var(--accent);font-size:13px;font-weight:600">Auf der Liste</div>` : '');
       return `
-        <div class="row" data-action="open-product" data-id="${p.id}">
+        <div class="row" data-action="open-product" data-id="${p.uid}">
           ${thumbHTML(p.photo, '📦')}
           <div class="row-main">
-            <div class="row-title">${esc(p.name)}</div>
+            <div class="row-title">${esc(displayName(p))}</div>
             <div class="row-sub">${sub}</div>
           </div>
           ${end}
@@ -251,29 +300,41 @@
 
   /* ----- Kassenbons ----- */
 
+  function receiptTitle(r) {
+    return r.store || (r.parsed && r.parsed.store) || 'Kassenbon';
+  }
+
   function renderReceipts() {
     if (!receipts.length) {
       view.innerHTML = `
         <div class="empty">
           <span class="emoji">🧾</span>
           <h2>Noch keine Kassenbons</h2>
-          <p>Fotografiere nach dem Einkauf deinen Bon und trage die Preise ein. So weiß ShopList, was deine Produkte kosten und wie lange sie halten.</p>
+          <p>Fotografiere nach dem Einkauf deinen Bon${aiOn() ? ' – die KI liest die Preise automatisch und hakt gekaufte Produkte ab' : ' und trage die Preise ein'}. So weiß ShopList, was deine Produkte kosten und wie lange sie halten.</p>
         </div>`;
       return;
     }
 
     view.innerHTML = `<div class="card">` + receipts.map(r => {
-      const rp = purchases.filter(p => p.receiptId === r.id);
+      const rp = purchases.filter(p => p.receiptUid === r.uid);
       const total = r.total != null ? r.total : (rp.length ? Stats.sumPrices(rp) : null);
-      const names = rp.map(p => productById(p.productId)?.name).filter(Boolean);
-      const sub = names.length
-        ? `${fmtDate(r.date)} · ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`
-        : fmtDate(r.date);
+      let sub;
+      if (r.aiStatus === 'pending') sub = '🤖 Bon wird gelesen…';
+      else if (r.aiStatus === 'error') sub = '⚠️ KI konnte den Bon nicht lesen';
+      else {
+        const names = rp.map(p => {
+          const prod = productByUid(p.productUid);
+          return prod ? displayName(prod) : null;
+        }).filter(Boolean);
+        sub = names.length
+          ? `${fmtDate(r.date)} · ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`
+          : fmtDate(r.date);
+      }
       return `
-        <div class="row" data-action="open-receipt" data-id="${r.id}">
+        <div class="row" data-action="open-receipt" data-id="${r.uid}">
           ${thumbHTML(r.photo, '🧾')}
           <div class="row-main">
-            <div class="row-title">${esc(r.store || 'Kassenbon')}</div>
+            <div class="row-title">${esc(receiptTitle(r))}</div>
             <div class="row-sub">${sub}</div>
           </div>
           <div class="row-end">${total != null ? fmtEUR(total) : ''}</div>
@@ -298,7 +359,6 @@
       ? 'Prognose auf Basis deiner bisherigen Käufe'
       : (state.statsOffset === 0 ? 'bisher ausgegeben' : 'ausgegeben');
 
-    // Balkendiagramm: 5 Perioden zurück bis 1 in die Zukunft
     const cols = [];
     let maxVal = 0;
     for (let off = -4; off <= 1; off++) {
@@ -317,19 +377,18 @@
         <span class="tick">${Stats.shortPeriodLabel(kind, c.r)}</span>
       </button>`).join('') + `</div>`;
 
-    // Aufschlüsselung
     let breakdown = '';
     if (range.future) {
       if (proj.items.length) {
         breakdown = `<div class="section-label">Prognose nach Produkt</div><div class="card">` +
           proj.items.map(item => {
-            const p = productById(item.productId);
+            const p = productByUid(item.productUid);
             if (!p) return '';
             return `
-              <div class="row" data-action="open-product" data-id="${p.id}">
+              <div class="row" data-action="open-product" data-id="${p.uid}">
                 ${thumbHTML(p.photo, '📦')}
                 <div class="row-main">
-                  <div class="row-title">${esc(p.name)}</div>
+                  <div class="row-title">${esc(displayName(p))}</div>
                   <div class="row-sub">alle ~${fmtDays(item.stats.avgIntervalDays)} · Ø ${fmtEUR(item.stats.avgPrice)}</div>
                 </div>
                 <div class="row-end">≈ ${fmtEUR(item.amount)}</div>
@@ -342,20 +401,20 @@
     } else {
       const sums = new Map();
       for (const p of inRange) {
-        sums.set(p.productId, (sums.get(p.productId) || 0) + (p.price || 0));
+        sums.set(p.productUid, (sums.get(p.productUid) || 0) + (p.price || 0));
       }
       const rows = [...sums.entries()].sort((a, b) => b[1] - a[1]);
       if (rows.length) {
         breakdown = `<div class="section-label">Ausgaben nach Produkt</div><div class="card">` +
-          rows.map(([pid, sum]) => {
-            const p = productById(pid);
+          rows.map(([uid, sum]) => {
+            const p = productByUid(uid);
             if (!p) return '';
-            const count = inRange.filter(x => x.productId === pid).length;
+            const count = inRange.filter(x => x.productUid === uid).length;
             return `
-              <div class="row" data-action="open-product" data-id="${p.id}">
+              <div class="row" data-action="open-product" data-id="${p.uid}">
                 ${thumbHTML(p.photo, '📦')}
                 <div class="row-main">
-                  <div class="row-title">${esc(p.name)}</div>
+                  <div class="row-title">${esc(displayName(p))}</div>
                   <div class="row-sub">${count} ${count === 1 ? 'Kauf' : 'Käufe'}</div>
                 </div>
                 <div class="row-end">${fmtEUR(sum)}</div>
@@ -423,6 +482,7 @@
 
   function openAddProduct(toList) {
     let photoBlob = null;
+    const ai = aiOn();
     const sheet = openSheet(`
       ${sheetHead('Produkt hinzufügen')}
       <div class="field">
@@ -432,8 +492,8 @@
         </button>
       </div>
       <div class="field">
-        <label for="np">Name</label>
-        <input type="text" id="np" placeholder="z. B. Weichspüler" autocomplete="off">
+        <label for="np">Name${ai ? ' (leer lassen = KI erkennt ihn vom Foto)' : ''}</label>
+        <input type="text" id="np" placeholder="${ai ? 'automatisch per KI' : 'z. B. Weichspüler'}" autocomplete="off">
       </div>
       <button class="btn" id="save" disabled>${toList ? 'Auf die Einkaufsliste setzen' : 'Produkt speichern'}</button>
     `);
@@ -442,9 +502,10 @@
     const saveBtn = sheet.querySelector('#save');
     const photoBtn = sheet.querySelector('#pp');
 
-    nameInput.addEventListener('input', () => {
-      saveBtn.disabled = !nameInput.value.trim();
-    });
+    const updateSave = () => {
+      saveBtn.disabled = !nameInput.value.trim() && !(ai && photoBlob);
+    };
+    nameInput.addEventListener('input', updateSave);
 
     photoBtn.addEventListener('click', async () => {
       const file = await pickImage();
@@ -452,32 +513,39 @@
       photoBlob = await resizeImage(file);
       photoBtn.classList.add('has-photo');
       photoBtn.innerHTML = `<img src="${photoURL(photoBlob)}" alt="Produktfoto">`;
+      updateSave();
     });
 
     saveBtn.addEventListener('click', async () => {
       const name = nameInput.value.trim();
-      if (!name) return;
-      await DB.add('products', {
+      if (!name && !(ai && photoBlob)) return;
+      await DB.put('products', {
+        uid: DB.genUid(),
         name,
+        aiLabel: '',
+        aiStatus: ai && photoBlob ? 'pending' : null,
         photo: photoBlob,
+        photoRev: photoBlob ? Date.now() : 0,
         onList: toList ? 1 : 0,
         checked: 0,
         createdAt: Date.now(),
-      });
+        deleted: 0,
+      }, { photoChanged: !!photoBlob });
+      Sync.schedule();
       render();
     });
 
-    setTimeout(() => nameInput.focus(), 300);
+    if (!ai) setTimeout(() => nameInput.focus(), 300);
   }
 
   /* ----- Produkt-Detail ----- */
 
-  function openProductDetail(id) {
-    const p = productById(id);
+  function openProductDetail(uid) {
+    const p = productByUid(uid);
     if (!p) return;
-    const productPurchases = (purchasesByProduct().get(id) || []);
+    const productPurchases = (purchasesByProduct().get(uid) || []);
     const stats = Stats.productStats(productPurchases);
-    const receiptById = new Map(receipts.map(r => [r.id, r]));
+    const receiptByUid = new Map(receipts.map(r => [r.uid, r]));
 
     let hints = '';
     if (stats.priceHint) {
@@ -494,12 +562,12 @@
     const history = productPurchases.length
       ? `<div class="section-label">Kaufhistorie</div><div class="card">` +
         [...productPurchases].reverse().map(x => {
-          const r = x.receiptId != null ? receiptById.get(x.receiptId) : null;
+          const r = x.receiptUid ? receiptByUid.get(x.receiptUid) : null;
           return `
             <div class="row" style="min-height:48px">
               <div class="row-main">
                 <div class="row-title" style="font-size:15px">${fmtDate(x.date)}</div>
-                ${r && r.store ? `<div class="row-sub">${esc(r.store)}</div>` : ''}
+                ${r && receiptTitle(r) !== 'Kassenbon' ? `<div class="row-sub">${esc(receiptTitle(r))}</div>` : ''}
               </div>
               <div class="row-end">${x.price != null ? fmtEUR(x.price) : '–'}</div>
             </div>`;
@@ -507,8 +575,9 @@
       : `<p class="note">Noch keine Käufe erfasst. Trage einen Kauf nach oder schließe einen Einkauf über die Liste ab.</p>`;
 
     openSheet(`
-      ${sheetHead(p.name)}
-      ${p.photo ? `<img class="detail-photo" src="${photoURL(p.photo)}" alt="${esc(p.name)}">` : ''}
+      ${sheetHead(displayName(p))}
+      ${p.photo ? `<img class="detail-photo" src="${photoURL(p.photo)}" alt="${esc(displayName(p))}">` : ''}
+      ${p.aiLabel ? `<p class="note" style="margin:8px 4px">🤖 KI-Erkennung: ${esc(p.aiLabel)}</p>` : ''}
       <div class="stat-grid">
         <div class="stat-tile"><div class="value">${fmtEUR(stats.lastPrice)}</div><div class="label">Letzter Preis</div></div>
         <div class="stat-tile"><div class="value">${fmtEUR(stats.avgPrice)}</div><div class="label">Ø Preis</div></div>
@@ -519,18 +588,18 @@
       ${history}
       <div style="margin-top:16px">
         ${p.onList
-          ? `<button class="btn secondary" data-action="product-unlist" data-id="${p.id}">Von der Liste nehmen</button>`
-          : `<button class="btn" data-action="product-list" data-id="${p.id}">Auf die Einkaufsliste</button>`}
-        <button class="btn secondary" data-action="product-log" data-id="${p.id}">Kauf nachtragen</button>
-        <button class="btn secondary" data-action="product-photo" data-id="${p.id}">Foto ändern</button>
-        <button class="btn secondary" data-action="product-rename" data-id="${p.id}">Umbenennen</button>
-        <button class="btn danger" data-action="product-delete" data-id="${p.id}">Produkt löschen</button>
+          ? `<button class="btn secondary" data-action="product-unlist" data-id="${p.uid}">Von der Liste nehmen</button>`
+          : `<button class="btn" data-action="product-list" data-id="${p.uid}">Auf die Einkaufsliste</button>`}
+        <button class="btn secondary" data-action="product-log" data-id="${p.uid}">Kauf nachtragen</button>
+        <button class="btn secondary" data-action="product-photo" data-id="${p.uid}">Foto ändern</button>
+        <button class="btn secondary" data-action="product-rename" data-id="${p.uid}">Umbenennen</button>
+        <button class="btn danger" data-action="product-delete" data-id="${p.uid}">Produkt löschen</button>
       </div>
     `);
   }
 
-  function openRenameProduct(id) {
-    const p = productById(id);
+  function openRenameProduct(uid) {
+    const p = productByUid(uid);
     if (!p) return;
     const sheet = openSheet(`
       ${sheetHead('Umbenennen')}
@@ -546,17 +615,18 @@
       if (!name) return;
       p.name = name;
       await DB.put('products', p);
+      Sync.schedule();
       render();
     });
     setTimeout(() => { input.focus(); input.select(); }, 300);
   }
 
-  function openLogPurchase(id) {
-    const p = productById(id);
+  function openLogPurchase(uid) {
+    const p = productByUid(uid);
     if (!p) return;
     const sheet = openSheet(`
       ${sheetHead('Kauf nachtragen')}
-      <p class="note">Du weißt noch, wann du ${esc(p.name)} gekauft hast? Trage es hier nach – so werden Haltbarkeit und Prognosen genauer.</p>
+      <p class="note">Du weißt noch, wann du ${esc(displayName(p))} gekauft hast? Trage es hier nach – so werden Haltbarkeit und Prognosen genauer.</p>
       <div class="field">
         <label for="ld">Datum</label>
         <input type="date" id="ld" value="${Stats.todayStr()}" max="${Stats.todayStr()}">
@@ -570,25 +640,19 @@
     sheet.querySelector('#save').addEventListener('click', async () => {
       const date = sheet.querySelector('#ld').value;
       if (!date) return;
-      await DB.add('purchases', {
-        productId: p.id,
+      await DB.put('purchases', {
+        uid: DB.genUid(),
+        productUid: p.uid,
         price: parsePrice(sheet.querySelector('#lp').value),
         date,
-        receiptId: null,
+        receiptUid: null,
+        deleted: 0,
       });
-      openProductDetailAfterReload(p.id);
+      Sync.schedule();
+      await loadData();
+      renderView();
+      openProductDetail(p.uid);
     });
-  }
-
-  // Daten neu laden, die Ansicht im Hintergrund aktualisieren und das
-  // Produkt-Sheet wieder öffnen (z. B. nach "Kauf nachtragen").
-  async function openProductDetailAfterReload(id) {
-    await loadData();
-    if (state.tab === 'list') renderList();
-    else if (state.tab === 'products') renderProducts();
-    else if (state.tab === 'receipts') renderReceipts();
-    else renderStats();
-    openProductDetail(id);
   }
 
   /* ----- Einkauf abschließen ----- */
@@ -597,6 +661,7 @@
     const items = products.filter(p => p.onList && p.checked);
     if (!items.length) return;
     const byProduct = purchasesByProduct();
+    const ai = aiOn();
     let receiptBlob = null;
 
     const sheet = openSheet(`
@@ -604,7 +669,7 @@
       <div class="field">
         <button type="button" class="photo-pick" id="rp" style="aspect-ratio:auto;height:110px">
           <span class="cam-emoji">🧾</span>
-          <span>Kassenbon fotografieren (optional)</span>
+          <span>Kassenbon fotografieren${ai ? ' – KI liest die Preise' : ' (optional)'}</span>
         </button>
       </div>
       <div class="field">
@@ -615,21 +680,23 @@
         <label for="pd">Datum</label>
         <input type="date" id="pd" value="${Stats.todayStr()}" max="${Stats.todayStr()}">
       </div>
-      <div class="section-label">Preise vom Bon (optional)</div>
+      <div class="section-label">Preise${ai ? ' (leer lassen = KI liest sie vom Bon)' : ' vom Bon (optional)'}</div>
       <div class="card">
         ${items.map(p => {
-          const stats = Stats.productStats(byProduct.get(p.id) || []);
+          const stats = Stats.productStats(byProduct.get(p.uid) || []);
           return `
             <div class="price-row">
               ${thumbHTML(p.photo, '🧺')}
-              <div class="row-main"><div class="row-title" style="font-size:15px">${esc(p.name)}</div></div>
-              <input class="price-input" data-pid="${p.id}" inputmode="decimal"
+              <div class="row-main"><div class="row-title" style="font-size:15px">${esc(displayName(p))}</div></div>
+              <input class="price-input" data-pid="${p.uid}" inputmode="decimal"
                      placeholder="${stats.lastPrice != null ? stats.lastPrice.toFixed(2).replace('.', ',') : '0,00'}">
               <span class="currency-suffix">€</span>
             </div>`;
         }).join('')}
       </div>
-      <p class="note">Preise kannst du auch weglassen – dann merkt sich ShopList nur das Kaufdatum für die Haltbarkeit.</p>
+      <p class="note">${ai
+        ? 'Mit Bon-Foto trägt die KI fehlende Preise automatisch nach, sobald der Server den Bon gelesen hat.'
+        : 'Preise kannst du auch weglassen – dann merkt sich ShopList nur das Kaufdatum für die Haltbarkeit.'}</p>
       <button class="btn" id="save" style="margin-top:8px">Einkauf speichern</button>
     `);
 
@@ -646,31 +713,41 @@
       const date = sheet.querySelector('#pd').value || Stats.todayStr();
       const store = sheet.querySelector('#store').value.trim();
       const priceInputs = [...sheet.querySelectorAll('.price-input')];
-      const prices = new Map(priceInputs.map(i => [Number(i.dataset.pid), parsePrice(i.value)]));
+      const prices = new Map(priceInputs.map(i => [i.dataset.pid, parsePrice(i.value)]));
 
-      let receiptId = null;
+      let receiptUid = null;
       if (receiptBlob || store) {
+        receiptUid = DB.genUid();
         const entered = [...prices.values()].filter(v => v != null);
-        receiptId = await DB.add('receipts', {
+        await DB.put('receipts', {
+          uid: receiptUid,
           photo: receiptBlob,
+          photoRev: receiptBlob ? Date.now() : 0,
           store,
           total: entered.length ? Math.round(entered.reduce((a, b) => a + b, 0) * 100) / 100 : null,
           date,
+          parsed: null,
+          aiStatus: ai && receiptBlob ? 'pending' : null,
+          aiError: null,
           createdAt: Date.now(),
-        });
+          deleted: 0,
+        }, { photoChanged: !!receiptBlob });
       }
 
       for (const p of items) {
-        await DB.add('purchases', {
-          productId: p.id,
-          price: prices.get(p.id) ?? null,
+        await DB.put('purchases', {
+          uid: DB.genUid(),
+          productUid: p.uid,
+          price: prices.get(p.uid) ?? null,
           date,
-          receiptId,
+          receiptUid,
+          deleted: 0,
         });
         p.onList = 0;
         p.checked = 0;
         await DB.put('products', p);
       }
+      Sync.schedule();
       render();
     });
   }
@@ -680,6 +757,7 @@
   function openAddReceipt() {
     let receiptBlob = null;
     const selected = new Set();
+    const ai = aiOn();
 
     const sheet = openSheet(`
       ${sheetHead('Kassenbon erfassen')}
@@ -689,6 +767,7 @@
           <span>Bon fotografieren oder auswählen</span>
         </button>
       </div>
+      ${ai ? `<p class="note">🤖 Die KI liest Geschäft, Datum, Summe und Positionen automatisch, ordnet sie deinen Produkten zu und hakt gekaufte Sachen von der Liste ab. Du kannst die Felder unten deshalb leer lassen.</p>` : ''}
       <div class="field">
         <label for="store">Geschäft (optional)</label>
         <input type="text" id="store" placeholder="z. B. Aldi" autocomplete="off">
@@ -701,23 +780,24 @@
         <label for="rt">Bon-Summe (optional)</label>
         <input type="text" id="rt" inputmode="decimal" placeholder="z. B. 42,80">
       </div>
-      ${products.length ? `
+      ${!ai && products.length ? `
         <div class="section-label">Gekaufte Produkte zuordnen</div>
         <div class="card" id="assign">
           ${products.map(p => `
             <div class="price-row">
-              <button class="check" data-assign="${p.id}" aria-label="Auswählen"></button>
+              <button class="check" data-assign="${p.uid}" aria-label="Auswählen"></button>
               ${thumbHTML(p.photo, '📦')}
-              <div class="row-main"><div class="row-title" style="font-size:15px">${esc(p.name)}</div></div>
-              <input class="price-input" data-pid="${p.id}" inputmode="decimal" placeholder="0,00" disabled>
+              <div class="row-main"><div class="row-title" style="font-size:15px">${esc(displayName(p))}</div></div>
+              <input class="price-input" data-pid="${p.uid}" inputmode="decimal" placeholder="0,00" disabled>
               <span class="currency-suffix">€</span>
             </div>`).join('')}
         </div>
         <p class="note">Wähle die Produkte aus, die auf dem Bon stehen, und trage ihre Preise ein. Daraus berechnet ShopList Haltbarkeit und Kosten.</p>
-      ` : `<p class="note">Lege zuerst Produkte an, um Bon-Positionen zuzuordnen.</p>`}
-      <button class="btn" id="save" style="margin-top:8px">Bon speichern</button>
+      ` : ''}
+      <button class="btn" id="save" style="margin-top:8px" disabled>Bon speichern</button>
     `);
 
+    const saveBtn = sheet.querySelector('#save');
     const photoBtn = sheet.querySelector('#rp');
     photoBtn.addEventListener('click', async () => {
       const file = await pickImage();
@@ -725,11 +805,12 @@
       receiptBlob = await resizeImage(file, 1600, 0.85);
       photoBtn.classList.add('has-photo');
       photoBtn.innerHTML = `<img src="${photoURL(receiptBlob)}" alt="Kassenbon">`;
+      saveBtn.disabled = false;
     });
 
     sheet.querySelectorAll('[data-assign]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const pid = Number(btn.dataset.assign);
+        const pid = btn.dataset.assign;
         const input = sheet.querySelector(`.price-input[data-pid="${pid}"]`);
         if (selected.has(pid)) {
           selected.delete(pid);
@@ -744,58 +825,90 @@
       });
     });
 
-    sheet.querySelector('#save').addEventListener('click', async () => {
+    saveBtn.addEventListener('click', async () => {
+      if (!receiptBlob) return;
       const date = sheet.querySelector('#rd').value || Stats.todayStr();
       const store = sheet.querySelector('#store').value.trim();
       const total = parsePrice(sheet.querySelector('#rt').value);
+      const receiptUid = DB.genUid();
 
-      const receiptId = await DB.add('receipts', {
+      await DB.put('receipts', {
+        uid: receiptUid,
         photo: receiptBlob,
+        photoRev: Date.now(),
         store,
         total,
         date,
+        parsed: null,
+        aiStatus: ai ? 'pending' : null,
+        aiError: null,
         createdAt: Date.now(),
-      });
+        deleted: 0,
+      }, { photoChanged: true });
 
       for (const pid of selected) {
         const input = sheet.querySelector(`.price-input[data-pid="${pid}"]`);
-        await DB.add('purchases', {
-          productId: pid,
+        await DB.put('purchases', {
+          uid: DB.genUid(),
+          productUid: pid,
           price: parsePrice(input.value),
           date,
-          receiptId,
+          receiptUid,
+          deleted: 0,
         });
       }
+      Sync.schedule();
       render();
     });
   }
 
   /* ----- Kassenbon-Detail ----- */
 
-  function openReceiptDetail(id) {
-    const r = receipts.find(x => x.id === id);
+  function openReceiptDetail(uid) {
+    const r = receipts.find(x => x.uid === uid);
     if (!r) return;
-    const rp = purchases.filter(p => p.receiptId === r.id);
+    const rp = purchases.filter(p => p.receiptUid === r.uid);
     const total = r.total != null ? r.total : (rp.length ? Stats.sumPrices(rp) : null);
 
+    let aiSection = '';
+    if (r.aiStatus === 'pending') {
+      aiSection = `<div class="hint good">🤖 Der Bon liegt beim Server und wird von der KI gelesen. Ergebnis kommt beim nächsten Sync.</div>`;
+    } else if (r.aiStatus === 'error') {
+      aiSection = `<div class="hint warn">⚠️ Die KI konnte den Bon nicht lesen${r.aiError ? `: ${esc(r.aiError)}` : '.'} Du kannst Käufe manuell nachtragen.</div>`;
+    } else if (r.parsed && r.parsed.items && r.parsed.items.length) {
+      aiSection = `<div class="section-label">Vom Bon gelesen (KI)</div><div class="card">` +
+        r.parsed.items.map(item => {
+          const p = item.productUid ? productByUid(item.productUid) : null;
+          return `
+            <div class="row" style="min-height:44px" ${p ? `data-action="open-product" data-id="${p.uid}"` : ''}>
+              <div class="row-main">
+                <div class="row-title" style="font-size:14px">${esc(item.text)}</div>
+                ${p ? `<div class="row-sub">→ ${esc(displayName(p))}</div>` : `<div class="row-sub" style="color:var(--text-3)">kein passendes Produkt</div>`}
+              </div>
+              <div class="row-end">${item.price != null ? fmtEUR(item.price) : ''}</div>
+            </div>`;
+        }).join('') + `</div>`;
+    }
+
     openSheet(`
-      ${sheetHead(r.store || 'Kassenbon')}
+      ${sheetHead(receiptTitle(r))}
       <p class="note" style="margin-top:0">${fmtDate(r.date)}${total != null ? ` · Summe ${fmtEUR(total)}` : ''}</p>
+      ${aiSection}
       ${r.photo ? `<img class="receipt-photo" src="${photoURL(r.photo)}" alt="Kassenbon">` : ''}
       ${rp.length ? `
         <div class="section-label">Verbuchte Käufe</div>
         <div class="card">
           ${rp.map(x => {
-            const p = productById(x.productId);
+            const p = productByUid(x.productUid);
             return `
-              <div class="row" style="min-height:48px" ${p ? `data-action="open-product" data-id="${p.id}"` : ''}>
-                <div class="row-main"><div class="row-title" style="font-size:15px">${esc(p ? p.name : 'Gelöschtes Produkt')}</div></div>
+              <div class="row" style="min-height:48px" ${p ? `data-action="open-product" data-id="${p.uid}"` : ''}>
+                <div class="row-main"><div class="row-title" style="font-size:15px">${esc(p ? displayName(p) : 'Gelöschtes Produkt')}</div></div>
                 <div class="row-end">${x.price != null ? fmtEUR(x.price) : '–'}</div>
               </div>`;
           }).join('')}
         </div>` : ''}
       <div style="margin-top:16px">
-        <button class="btn danger" data-action="receipt-delete" data-id="${r.id}">Bon löschen</button>
+        <button class="btn danger" data-action="receipt-delete" data-id="${r.uid}">Bon löschen</button>
       </div>
       <p class="note">Beim Löschen bleiben verbuchte Käufe (Preise &amp; Daten) erhalten.</p>
     `);
@@ -809,7 +922,7 @@
     const el = e.target.closest('[data-action]');
     if (!el) return;
     const action = el.dataset.action;
-    const id = el.dataset.id != null ? Number(el.dataset.id) : null;
+    const uid = el.dataset.id || null;
 
     switch (action) {
       case 'close-sheet':
@@ -818,32 +931,34 @@
 
       case 'toggle-check': {
         e.stopPropagation();
-        const p = productById(id);
+        const p = productByUid(uid);
         if (!p) return;
         p.checked = p.checked ? 0 : 1;
         await DB.put('products', p);
+        Sync.schedule();
         render();
         break;
       }
 
       case 'quick-add': {
         e.stopPropagation();
-        const p = productById(id);
+        const p = productByUid(uid);
         if (!p) return;
         p.onList = 1;
         p.checked = 0;
         await DB.put('products', p);
+        Sync.schedule();
         render();
         break;
       }
 
       case 'open-product':
         if (e.target.closest('.check') || e.target.closest('.icon-btn')) return;
-        openProductDetail(id);
+        openProductDetail(uid);
         break;
 
       case 'open-receipt':
-        openReceiptDetail(id);
+        openReceiptDetail(uid);
         break;
 
       case 'complete-purchase':
@@ -851,80 +966,91 @@
         break;
 
       case 'product-list': {
-        const p = productById(id);
+        const p = productByUid(uid);
         if (!p) return;
         p.onList = 1;
         p.checked = 0;
         await DB.put('products', p);
+        Sync.schedule();
         state.tab = 'list';
         render();
         break;
       }
 
       case 'product-unlist': {
-        const p = productById(id);
+        const p = productByUid(uid);
         if (!p) return;
         p.onList = 0;
         p.checked = 0;
         await DB.put('products', p);
+        Sync.schedule();
         render();
         break;
       }
 
       case 'product-log':
-        openLogPurchase(id);
+        openLogPurchase(uid);
         break;
 
       case 'product-rename':
-        openRenameProduct(id);
+        openRenameProduct(uid);
         break;
 
       case 'product-photo': {
-        const p = productById(id);
+        const p = productByUid(uid);
         if (!p) return;
         const file = await pickImage();
         if (!file) return;
         p.photo = await resizeImage(file);
-        await DB.put('products', p);
-        openProductDetailAfterReload(id);
+        p.photoRev = Date.now();
+        if (aiOn()) p.aiStatus = 'pending';
+        await DB.put('products', p, { photoChanged: true });
+        Sync.schedule();
+        await loadData();
+        renderView();
+        openProductDetail(uid);
         break;
       }
 
       case 'product-delete': {
-        if (!confirmPending.has(`product-${id}`)) {
-          confirmPending.add(`product-${id}`);
+        if (!confirmPending.has(`product-${uid}`)) {
+          confirmPending.add(`product-${uid}`);
           el.textContent = 'Wirklich löschen? (inkl. Kaufhistorie)';
           setTimeout(() => {
-            confirmPending.delete(`product-${id}`);
+            confirmPending.delete(`product-${uid}`);
             if (el.isConnected) el.textContent = 'Produkt löschen';
           }, 3000);
           return;
         }
-        confirmPending.delete(`product-${id}`);
-        for (const x of purchases.filter(p => p.productId === id)) {
-          await DB.del('purchases', x.id);
+        confirmPending.delete(`product-${uid}`);
+        for (const x of purchases.filter(p => p.productUid === uid)) {
+          await DB.softDelete('purchases', x);
         }
-        await DB.del('products', id);
+        const p = productByUid(uid);
+        if (p) await DB.softDelete('products', p);
+        Sync.schedule();
         render();
         break;
       }
 
       case 'receipt-delete': {
-        if (!confirmPending.has(`receipt-${id}`)) {
-          confirmPending.add(`receipt-${id}`);
+        if (!confirmPending.has(`receipt-${uid}`)) {
+          confirmPending.add(`receipt-${uid}`);
           el.textContent = 'Wirklich löschen?';
           setTimeout(() => {
-            confirmPending.delete(`receipt-${id}`);
+            confirmPending.delete(`receipt-${uid}`);
             if (el.isConnected) el.textContent = 'Bon löschen';
           }, 3000);
           return;
         }
-        confirmPending.delete(`receipt-${id}`);
-        for (const x of purchases.filter(p => p.receiptId === id)) {
-          x.receiptId = null;
+        confirmPending.delete(`receipt-${uid}`);
+        for (const x of purchases.filter(p => p.receiptUid === uid)) {
+          x.receiptUid = null;
           await DB.put('purchases', x);
         }
-        await DB.del('receipts', id);
+        const r = receipts.find(x => x.uid === uid);
+        if (r) await DB.softDelete('receipts', r);
+        Sync.schedule();
         render();
         break;
       }
@@ -960,5 +1086,12 @@
     else if (state.tab === 'receipts') openAddReceipt();
   });
 
-  render();
+  syncDot.addEventListener('click', () => Sync.syncNow());
+
+  render().then(() => {
+    Sync.start({
+      onChange: refreshAfterSync,
+      onStatus: updateSyncDot,
+    });
+  });
 })();

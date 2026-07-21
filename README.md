@@ -4,44 +4,67 @@ Eine App fürs iPhone (und jedes andere Smartphone), mit der du den Überblick �
 
 - 📷 **Foto machen, wenn etwas leer läuft** – z. B. vom fast leeren Weichspüler. Das Produkt landet mit Bild auf deiner Einkaufsliste.
 - 🛒 **Beim Einkaufen abhaken** – du siehst die Bilder und Namen deiner Produkte und tippst sie einfach ab.
-- 🧾 **Kassenbon fotografieren** – nach dem Einkauf hältst du Preise und Kaufdatum fest.
+- 🧾 **Kassenbon fotografieren** – Preise und Kaufdatum werden festgehalten.
 - ⏱️ **Haltbarkeit lernen** – die App merkt sich, wie lange z. B. eine Flasche Weichspüler bei dir hält (Abstand zwischen den Käufen).
 - 💶 **Ausgaben & Prognosen** – Ausgaben pro Woche, Monat und Jahr, vergangen **und** in die Zukunft gerechnet, inklusive „monatliche Fixkosten“ deiner wiederkehrenden Einkäufe.
 - 💡 **Hinweise** – die App warnt dich, wenn du zuletzt deutlich **mehr bezahlt** hast als üblich oder ein Produkt **schneller verbraucht** wurde als sonst.
 
-Alle Daten (auch die Fotos) bleiben **lokal auf deinem Gerät** (IndexedDB im Browser). Nichts wird an einen Server geschickt.
+## Zwei Betriebsarten
 
-## 📲 Installation auf dem iPhone
+### 1. Nur Handy (ohne Server)
 
-Die App ist eine **Progressive Web App (PWA)** – sie braucht keinen App Store:
+Die App ist eine **Progressive Web App (PWA)**: über GitHub Pages gehostet, auf
+dem iPhone per Safari → **Teilen → „Zum Home-Bildschirm“** installierbar, läuft
+offline. Alle Daten (auch Fotos) bleiben lokal auf dem Gerät. Preise trägst du
+in dieser Betriebsart selbst ein.
 
-1. **GitHub Pages aktivieren** (einmalig):
-   - Auf GitHub im Repository: **Settings → Pages**
-   - Unter „Build and deployment“: **Source: Deploy from a branch**
-   - Branch auswählen (z. B. `main` bzw. den Branch mit diesem Code), Ordner `/ (root)`, dann **Save**
-   - Nach 1–2 Minuten ist die App unter `https://<dein-benutzername>.github.io/Shoplist-/` erreichbar
-2. **Auf dem iPhone**: Diese URL in **Safari** öffnen
-3. Unten auf **Teilen** (Viereck mit Pfeil) tippen → **„Zum Home-Bildschirm“**
-4. Fertig! ShopList liegt jetzt wie eine normale App auf deinem Home-Bildschirm, läuft im Vollbild und funktioniert auch **offline**.
+GitHub Pages aktivieren: **Settings → Pages → Deploy from a branch** → Branch
+wählen → `/ (root)` → Save. Danach ist die App unter
+`https://<benutzername>.github.io/Shoplist-/` erreichbar.
 
-## 🚀 So benutzt du die App
+### 2. Mit Heimserver + KI (TrueNAS, empfohlen) 🤖
 
-1. **Produkt anlegen:** Läuft etwas leer? Tab „Liste“ → **+** → Foto machen → Name eingeben. Das Produkt steht jetzt auf der Einkaufsliste.
-2. **Einkaufen:** Im Laden die Liste öffnen, gekaufte Artikel **abhaken**.
-3. **Einkauf abschließen:** Unten auf „Einkauf abschließen“ tippen → optional den **Kassenbon fotografieren**, Geschäft und **Preise** eintragen.
-4. **Auswerten:** Im Tab „Ausgaben“ siehst du deine Kosten pro **Woche / Monat / Jahr** – mit den Pfeilen blätterst du in Vergangenheit und **Zukunft** (Prognose). Im Tab „Produkte“ siehst du pro Produkt: letzter Preis, Durchschnittspreis, wie lange es hält und was es dich **pro Monat** kostet.
+Läuft ShopList auf deinem Server (z. B. TrueNAS mit NVIDIA-GPU), kommt die
+Automatik dazu – **komplett lokal, ohne Cloud**:
 
-Je mehr Einkäufe und Bons du erfasst, desto genauer werden Haltbarkeit, Prognosen und Preis-Hinweise.
+- **Produktfoto → Name:** Foto machen, Name leer lassen – die KI (Ollama mit
+  einem Vision-Modell) erkennt das Produkt und benennt es.
+- **Kassenbon → alles automatisch:** Bon fotografieren, fertig. Die KI liest
+  Geschäft, Datum, Summe und Positionen, ordnet sie deinen Produkten zu, trägt
+  Preise ein und hakt Gekauftes von der Einkaufsliste ab.
+- **Offline unterwegs, Sync zu Hause:** Im Supermarkt läuft die App lokal
+  (Liste ansehen, abhaken). Sobald das Handy den Server wieder erreicht,
+  synchronisieren sich beide automatisch. Mehrere Handys teilen sich denselben
+  Haushalt.
+
+👉 **[Schritt-für-Schritt-Anleitung für TrueNAS SCALE](deploy/TRUENAS.md)**
 
 ## 🛠️ Technik
 
-- Reines HTML/CSS/JavaScript – **kein Build-Schritt**, keine Abhängigkeiten
-- Speicherung: **IndexedDB** (Produkte, Käufe, Kassenbons – inkl. Fotos als komprimierte JPEGs)
-- **Service Worker** für Offline-Betrieb
-- Lokal testen: `python3 -m http.server 8000` im Projektordner, dann `http://localhost:8000` öffnen
+- **App:** reines HTML/CSS/JavaScript, kein Build-Schritt. Speicherung in
+  IndexedDB (inkl. Fotos), Service Worker für Offline-Betrieb.
+- **Server** (`server/`): Node.js ohne Abhängigkeiten – statische Auslieferung,
+  Sync-API (`POST /api/sync`, Offline-first, letzter Push gewinnt), Daten als
+  JSON + JPEG-Dateien im Datenverzeichnis, HTTPS mit Let's-Encrypt-Zertifikaten.
+- **KI-Worker:** spricht mit [Ollama](https://ollama.com) (Standard-Modell
+  `qwen2.5vl:7b`, läuft auf ~6 GB VRAM). Verarbeitet Produktfotos und
+  Kassenbons im Hintergrund.
+- **Deployment:** Docker Compose für TrueNAS SCALE 25.10+ (`deploy/`), GPU wird
+  an Ollama durchgereicht.
+
+Lokal testen:
+
+```sh
+# Nur die App (ohne Server):
+python3 -m http.server 8000
+
+# Mit Server und Sync (ohne KI):
+DATA_DIR=/tmp/shoplist-data HTTP_PORT=8000 node server/server.js
+```
 
 ## 🔭 Ideen für später
 
-- **Barcode-Scan** statt Foto-Abgleich: Ein Barcode identifiziert das Produkt eindeutig und ist der zuverlässigste Weg zu automatischen Preisdaten.
-- **Bon-Texterkennung (OCR)**, damit Preise nicht mehr von Hand eingetragen werden müssen.
-- **Automatischer Online-Preisvergleich**: Dafür braucht es einen Server mit Produkt­erkennung und Zugriff auf Händler-Preisdaten – die App ist so gebaut, dass sich das später ergänzen lässt. Bis dahin lernt sie die Preise aus deinen eigenen Kassenbons, was für die Frage „zahle ich zu viel?“ oft sogar aussagekräftiger ist.
+- **Barcode-Scan** als noch zuverlässigere Produkterkennung
+- **Automatischer Online-Preisvergleich** („zahle ich woanders weniger?“) –
+  bis dahin lernt die App deine echten Preise aus deinen eigenen Kassenbons
+- Mengen-Erkennung („2×“) und Pfand-Verrechnung auf dem Bon

@@ -18,6 +18,7 @@
 
   <header class="app-header">
     <h1 id="screen-title">Einkaufsliste</h1>
+    <button id="sync-dot" class="sync-dot off" title="Sync-Status" hidden></button>
     <button id="header-action" class="icon-btn" aria-label="Hinzufügen" hidden>
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -49,6 +50,7 @@
 
   <script src="js/db.js"></script>
   <script src="js/stats.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

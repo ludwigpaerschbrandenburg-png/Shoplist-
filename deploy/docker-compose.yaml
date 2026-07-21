@@ -1,0 +1,68 @@
+# ShopList – Docker Compose für TrueNAS SCALE 25.10+
+# Installieren über: Apps → Discover Apps → ⋮ (oben rechts) → Install via YAML
+#
+# Vor dem Speichern anpassen (alle mit "← ANPASSEN" markiert):
+#   1. Alle Pfade  /mnt/tank/apps/shoplist/...  → dein Pool/Ordner
+#   2. DOMAIN      meine-shoplist.duckdns.org   → deine DuckDNS-Domain (2×!)
+#   3. DUCKDNS_TOKEN und EMAIL                  → dein DuckDNS-Token / deine Mail
+#
+# Ohne HTTPS testen? Den kompletten "lego:"-Block löschen – die App läuft
+# dann über http://NAS-IP:8080 (der iPhone-Offline-Modus braucht aber HTTPS,
+# siehe TRUENAS.md).
+
+services:
+  shoplist:
+    image: node:22-alpine
+    restart: unless-stopped
+    command: ["node", "/app/server/server.js"]
+    environment:
+      DATA_DIR: /data
+      CERT_DIR: /certs
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5vl:7b
+      DOMAIN: meine-shoplist.duckdns.org              # ← ANPASSEN
+      PUBLIC_HTTPS_PORT: "8443"
+    volumes:
+      - /mnt/tank/apps/shoplist/code:/app:ro          # ← ANPASSEN (git-clone-Ordner)
+      - /mnt/tank/apps/shoplist/data:/data            # ← ANPASSEN (deine Daten + Fotos)
+      - /mnt/tank/apps/shoplist/certs:/certs:ro       # ← ANPASSEN (Zertifikate)
+    ports:
+      - "8080:80"
+      - "8443:443"
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - /mnt/tank/apps/shoplist/ollama:/root/.ollama  # ← ANPASSEN (Modell-Speicher, ~7 GB)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Holt und erneuert das kostenlose HTTPS-Zertifikat (Let's Encrypt)
+  # über deine DuckDNS-Domain. Es wird kein Port ins Internet geöffnet.
+  lego:
+    image: goacme/lego:latest
+    restart: unless-stopped
+    environment:
+      DUCKDNS_TOKEN: hier-dein-duckdns-token          # ← ANPASSEN
+      DOMAIN: meine-shoplist.duckdns.org              # ← ANPASSEN (gleiche wie oben)
+      EMAIL: du@example.com                           # ← ANPASSEN
+    volumes:
+      - /mnt/tank/apps/shoplist/certs:/certs          # ← ANPASSEN
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ ! -f "/certs/certificates/$${DOMAIN}.crt" ]; then
+          lego --accept-tos --path /certs --email "$${EMAIL}" --dns duckdns --domains "$${DOMAIN}" run
+        fi
+        while true; do
+          sleep 43200
+          lego --accept-tos --path /certs --email "$${EMAIL}" --dns duckdns --domains "$${DOMAIN}" renew --days 30 || true
+        done

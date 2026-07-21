@@ -64,11 +64,39 @@ body {
   border-bottom: 0.5px solid var(--separator);
 }
 
+.app-header {
+  gap: 12px;
+}
+
 .app-header h1 {
   margin: 0;
+  flex: 1;
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.3px;
+}
+
+/* Sync-Status-Punkt im Header */
+.sync-dot {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  flex: none;
+}
+
+.sync-dot.ok { background: var(--accent); }
+.sync-dot.off { background: var(--text-3); }
+.sync-dot.err { background: var(--danger); }
+.sync-dot.busy {
+  background: var(--warn);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.35; }
 }
 
 .icon-btn {

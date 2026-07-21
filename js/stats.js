@@ -135,10 +135,10 @@ const Stats = (() => {
     const items = [];
     let total = 0;
     for (const product of products) {
-      const stats = productStats(purchasesByProduct.get(product.id) || []);
+      const stats = productStats(purchasesByProduct.get(product.uid) || []);
       if (stats.costPerDay != null) {
         const amount = stats.costPerDay * days;
-        items.push({ productId: product.id, amount, stats });
+        items.push({ productUid: product.uid, amount, stats });
         total += amount;
       }
     }
