@@ -636,6 +636,85 @@
   table.totals tbody td { font-size: 12.5px; }
   table.totals tbody td:first-child { color: var(--text); font-weight: 600; }
   table.totals tr.cycle td { border-bottom: 0; background: var(--panel-alt); font-weight: 700; }
+  table.totals tr.wende td { background: #fbfcfd; color: var(--muted); }
+  table.totals tr.wende td:first-child { font-weight: 600; color: var(--text); }
+
+  table.totals td.in {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--muted-2);
+  }
+
+  input.wende-in, input.takt-in {
+    width: 52px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 2px 5px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+    background: var(--panel);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input.wende-in:focus, input.takt-in:focus { outline: none; border-color: var(--accent); }
+
+  .calc {
+    margin-top: 10px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+
+  .calc .lead {
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: normal;
+  }
+
+  .calc strong { color: var(--text); font-weight: 700; }
+
+  .loopnote {
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .loopnote .ok { color: var(--pin-start); font-weight: 600; }
+
+  .taktrow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .taktrow .field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .taktrow .calc { margin-top: 0; }
+
+  .umlauf-empty {
+    color: var(--muted);
+    font-size: 12px;
+    padding: 4px 0;
+  }
   table.totals tr.active td:first-child::after {
     content: " ·  angezeigt";
     font-weight: 400;
@@ -707,7 +786,7 @@
     }
     .wrap { max-width: none; padding: 0; }
     .map-card, .switchbar, .toolbar, .foot, .controls,
-    .stop .actions, button.reset, .summary .warn { display: none !important; }
+    .stop .actions, button.reset { display: none !important; }
     .table, .summary { border-color: #999; break-inside: avoid; }
     .thead, table.sheet th, .summary .head, table.sheet tfoot td { background: #eee !important; }
     input {
@@ -823,28 +902,99 @@
     <div class="head">Zusammenfassung</div>
     <div class="body">
       <div class="headline" id="headline">Noch keine Haltestellen gesetzt.</div>
-      <table class="totals" id="totals" hidden>
-        <thead>
-          <tr>
-            <th>Richtung</th>
-            <th>Haltestellen</th>
-            <th>Fahrzeit</th>
-            <th>Aufenthalt</th>
-            <th>Gesamt</th>
-          </tr>
-        </thead>
-        <tbody id="totalsBody"></tbody>
-      </table>
       <div class="details" id="details" hidden></div>
       <div class="warn" id="warn" hidden></div>
+    </div>
+  </section>
+
+  <section class="summary" id="umlaufPanel" aria-live="polite">
+    <div class="head">Umlauf und Fahrzeugbedarf</div>
+    <div class="body">
+      <div class="umlauf-empty" id="umlaufEmpty">
+        Für den Umlauf braucht es Hin- und Rückfahrt mit je mindestens zwei Haltestellen.
+      </div>
+
+      <div id="umlaufContent" hidden>
+        <table class="totals" id="totals">
+          <thead>
+            <tr>
+              <th>Abschnitt</th>
+              <th>Haltestellen</th>
+              <th>Fahrzeit</th>
+              <th>Aufenthalt / Wende</th>
+              <th>Gesamt</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="rowOut">
+              <td>Hinfahrt</td>
+              <td id="cOutStops"></td>
+              <td id="cOutDrive"></td>
+              <td id="cOutDwell"></td>
+              <td id="cOutTotal"></td>
+            </tr>
+            <tr class="wende">
+              <td id="labelWendeEnd">Wende am Ziel</td>
+              <td>–</td>
+              <td>–</td>
+              <td class="in">
+                <input id="wendeEnd" class="wende-in" type="number" min="0" step="1" value="5"
+                       aria-label="Wendezeit an der Endhaltestelle in Minuten">
+                <span>Min.</span>
+              </td>
+              <td id="cWendeEnd"></td>
+            </tr>
+            <tr id="rowBack">
+              <td>Rückfahrt</td>
+              <td id="cBackStops"></td>
+              <td id="cBackDrive"></td>
+              <td id="cBackDwell"></td>
+              <td id="cBackTotal"></td>
+            </tr>
+            <tr class="wende">
+              <td id="labelWendeStart">Wende am Start</td>
+              <td>–</td>
+              <td>–</td>
+              <td class="in">
+                <input id="wendeStart" class="wende-in" type="number" min="0" step="1" value="5"
+                       aria-label="Wendezeit an der Starthaltestelle in Minuten">
+                <span>Min.</span>
+              </td>
+              <td id="cWendeStart"></td>
+            </tr>
+            <tr class="cycle">
+              <td>Umlaufzeit</td>
+              <td>–</td>
+              <td id="cSumDrive"></td>
+              <td id="cSumStand"></td>
+              <td id="cSumTotal"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="loopnote" id="loopNote"></div>
+        <div class="calc" id="calcUmlauf"></div>
+
+        <div class="taktrow">
+          <label class="field">
+            Takt
+            <input id="takt" class="takt-in" type="number" min="1" step="1" value="20"
+                   aria-label="Takt in Minuten">
+            Min.
+          </label>
+          <div class="calc" id="calcVehicles"></div>
+        </div>
+
+        <div class="warn" id="warnTakt" hidden></div>
+        <div class="warn" id="warnLoop" hidden></div>
+      </div>
     </div>
   </section>
 
   <p class="foot">
     Routing: OSRM-Demoserver, Profil „driving" als Näherung – es gibt kein
     öffentliches Bus-Profil. Hin- und Rückweg werden getrennt abgefragt.
-    Fahrzeiten sind Schätzwerte, kein Fahrplan. Die Umlaufzeit enthält noch
-    keine Wendezeit.
+    Fahrzeiten sind Schätzwerte, kein Fahrplan.
   </p>
 
 </div>
@@ -1850,8 +2000,28 @@
      ================================================================== */
 
   var headlineEl = document.getElementById("headline");
-  var totalsEl = document.getElementById("totals");
-  var totalsBody = document.getElementById("totalsBody");
+  var umlaufEmpty = document.getElementById("umlaufEmpty");
+  var umlaufContent = document.getElementById("umlaufContent");
+  var rowOut = document.getElementById("rowOut");
+  var rowBack = document.getElementById("rowBack");
+  var labelWendeEnd = document.getElementById("labelWendeEnd");
+  var labelWendeStart = document.getElementById("labelWendeStart");
+  var wendeEndInput = document.getElementById("wendeEnd");
+  var wendeStartInput = document.getElementById("wendeStart");
+  var taktInput = document.getElementById("takt");
+  var loopNote = document.getElementById("loopNote");
+  var calcUmlaufEl = document.getElementById("calcUmlauf");
+  var calcVehiclesEl = document.getElementById("calcVehicles");
+  var warnTakt = document.getElementById("warnTakt");
+  var warnLoop = document.getElementById("warnLoop");
+
+  var cells = {};
+  ["cOutStops", "cOutDrive", "cOutDwell", "cOutTotal",
+   "cBackStops", "cBackDrive", "cBackDwell", "cBackTotal",
+   "cWendeEnd", "cWendeStart",
+   "cSumDrive", "cSumStand", "cSumTotal"].forEach(function (id) {
+    cells[id] = document.getElementById(id);
+  });
   var detailsEl = document.getElementById("details");
   var warnEl = document.getElementById("warn");
   var statusEl = document.getElementById("status");
@@ -1868,22 +2038,184 @@
   var subBack = document.getElementById("subBack");
   var printHead = document.getElementById("printHead");
 
-  function totalsRow(label, t, className) {
-    var tr = document.createElement("tr");
-    if (className) { tr.className = className; }
+  function placeName(place) {
+    return place ? (place.name.trim() || place.fallback) : "–";
+  }
 
-    [label,
-     t.stops === null ? "–" : String(t.stops),
-     clock(t.driveSeconds),
-     clock(t.dwellSeconds),
-     clock(t.totalSeconds)
-    ].forEach(function (text) {
-      var td = document.createElement("td");
-      td.textContent = text;
-      tr.appendChild(td);
-    });
+  // Endpunkte beider Richtungen. Bei einer geschlossenen Linie ist der
+  // Endpunkt der Hinfahrt der Startpunkt der Rückfahrt und umgekehrt.
+  function terminals() {
+    var out = dirs.out.entries;
+    var back = dirs.back.entries;
+    return {
+      start:     out.length ? out[0].place : null,
+      end:       out.length > 1 ? out[out.length - 1].place : null,
+      backStart: back.length ? back[0].place : null,
+      backEnd:   back.length > 1 ? back[back.length - 1].place : null
+    };
+  }
 
-    return tr;
+  function loopIsClosed(t) {
+    if (!t.start || !t.end || !t.backStart || !t.backEnd) { return false; }
+    return t.backStart === t.end && t.backEnd === t.start;
+  }
+
+  function minutesFromInput(input) {
+    var value = parseFloat(String(input.value).trim().replace(",", "."));
+    return (isNaN(value) || value < 0) ? 0 : value;
+  }
+
+  function taktMinutes() {
+    var value = parseFloat(String(taktInput.value).trim().replace(",", "."));
+    return (isNaN(value) || value <= 0) ? 0 : value;
+  }
+
+  function equation(parent, lead, pieces, result) {
+    parent.textContent = "";
+
+    var label = document.createElement("span");
+    label.className = "lead";
+    label.textContent = lead + ": ";
+    parent.appendChild(label);
+
+    parent.appendChild(document.createTextNode(pieces.join(" + ") + " = "));
+
+    var strong = document.createElement("strong");
+    strong.textContent = result;
+    parent.appendChild(strong);
+  }
+
+  /* ------------------------------------------------------------------
+     Umlaufzeit und Fahrzeugbedarf
+
+     Umlaufzeit = Hinfahrt (Fahrt + Aufenthalte) + Wende am Ziel
+                + Rückfahrt (Fahrt + Aufenthalte) + Wende am Start
+     ------------------------------------------------------------------ */
+  function renderUmlauf(tOut, tBack) {
+    var ready = dirs.out.entries.length > 1 && dirs.back.entries.length > 1;
+    umlaufEmpty.hidden = ready;
+    umlaufContent.hidden = !ready;
+    if (!ready) { return; }
+
+    var t = terminals();
+    var closed = loopIsClosed(t);
+
+    var wendeEndMin = minutesFromInput(wendeEndInput);
+    var wendeStartMin = minutesFromInput(wendeStartInput);
+    var wendeEndSec = wendeEndMin * 60;
+    var wendeStartSec = wendeStartMin * 60;
+
+    var umlaufSec = Math.round(tOut.totalSeconds + wendeEndSec +
+                               tBack.totalSeconds + wendeStartSec);
+
+    labelWendeEnd.textContent = "Wende " + placeName(t.end);
+    labelWendeStart.textContent = "Wende " + placeName(t.start);
+
+    rowOut.className = activeDir === "out" ? "active" : "";
+    rowBack.className = activeDir === "back" ? "active" : "";
+
+    cells.cOutStops.textContent = String(tOut.stops);
+    cells.cOutDrive.textContent = clock(tOut.driveSeconds);
+    cells.cOutDwell.textContent = clock(tOut.dwellSeconds);
+    cells.cOutTotal.textContent = clock(tOut.totalSeconds);
+
+    cells.cBackStops.textContent = String(tBack.stops);
+    cells.cBackDrive.textContent = clock(tBack.driveSeconds);
+    cells.cBackDwell.textContent = clock(tBack.dwellSeconds);
+    cells.cBackTotal.textContent = clock(tBack.totalSeconds);
+
+    cells.cWendeEnd.textContent = clock(wendeEndSec);
+    cells.cWendeStart.textContent = clock(wendeStartSec);
+
+    cells.cSumDrive.textContent = clock(tOut.driveSeconds + tBack.driveSeconds);
+    cells.cSumStand.textContent = clock(tOut.dwellSeconds + tBack.dwellSeconds +
+                                        wendeEndSec + wendeStartSec);
+    cells.cSumTotal.textContent = clock(umlaufSec);
+
+    // Erkennung der geschlossenen Linie sichtbar machen
+    loopNote.textContent = "";
+    if (closed) {
+      var ok = document.createElement("span");
+      ok.className = "ok";
+      ok.textContent = "Geschlossene Linie";
+      loopNote.appendChild(ok);
+      loopNote.appendChild(document.createTextNode(
+        ": die Rückfahrt endet wieder an " + placeName(t.start) +
+        ", der Umlauf schließt sich."));
+      warnLoop.hidden = true;
+    } else {
+      loopNote.appendChild(document.createTextNode(
+        "Endpunkte: Hinfahrt " + placeName(t.start) + " → " + placeName(t.end) +
+        ", Rückfahrt " + placeName(t.backStart) + " → " + placeName(t.backEnd) + "."));
+      warnLoop.textContent = "⚠ Die Linie ist nicht geschlossen: die Rückfahrt endet an " +
+        placeName(t.backEnd) + ", die Hinfahrt beginnt aber an " + placeName(t.start) +
+        ". Die Summe unten ist deshalb kein echter Umlauf – erst mit gleichen Endpunkten " +
+        "steht das Fahrzeug wieder dort, wo die nächste Hinfahrt beginnt.";
+      warnLoop.hidden = false;
+    }
+
+    equation(calcUmlaufEl, "Umlaufzeit", [
+      clock(tOut.totalSeconds) + " (Hinfahrt)",
+      num(wendeEndMin) + " Min (Wende " + placeName(t.end) + ")",
+      clock(tBack.totalSeconds) + " (Rückfahrt)",
+      num(wendeStartMin) + " Min (Wende " + placeName(t.start) + ")"
+    ], clock(umlaufSec));
+
+    renderVehicles(umlaufSec, wendeEndSec + wendeStartSec);
+  }
+
+  function renderVehicles(umlaufSec, wendeTotalSec) {
+    var takt = taktMinutes();
+
+    if (takt <= 0) {
+      calcVehiclesEl.textContent = "";
+      var hint = document.createElement("span");
+      hint.className = "lead";
+      hint.textContent = "Fahrzeuge: ";
+      calcVehiclesEl.appendChild(hint);
+      calcVehiclesEl.appendChild(document.createTextNode("Takt eingeben."));
+      warnTakt.hidden = true;
+      return;
+    }
+
+    var taktSec = Math.round(takt * 60);
+    var raw = umlaufSec / taktSec;
+    var vehicles = Math.ceil(raw);
+
+    calcVehiclesEl.textContent = "";
+    var label = document.createElement("span");
+    label.className = "lead";
+    label.textContent = "Fahrzeuge: ";
+    calcVehiclesEl.appendChild(label);
+    calcVehiclesEl.appendChild(document.createTextNode(
+      clock(umlaufSec) + " / " + num(takt) + " Min = " + num(raw) + " → aufgerundet "));
+    var strong = document.createElement("strong");
+    strong.textContent = vehicles + " " + plural(vehicles, "Fahrzeug", "Fahrzeuge");
+    calcVehiclesEl.appendChild(strong);
+
+    // Geht die Umlaufzeit nicht glatt im Takt auf, muss in der Praxis
+    // nachjustiert werden - meist über die Wendezeiten.
+    var rest = umlaufSec % taktSec;
+    if (rest === 0 || umlaufSec === 0) {
+      warnTakt.hidden = true;
+      return;
+    }
+
+    var covered = vehicles * taktSec;
+    var buffer = covered - umlaufSec;
+    var fullTakte = Math.floor(umlaufSec / taktSec);
+
+    // Kürzen geht nur, soweit in den Wendezeiten überhaupt so viel steht.
+    var canShorten = wendeTotalSec >= rest;
+
+    warnTakt.textContent = "⚠ Nicht taktrein: " + clock(umlaufSec) + " ist kein Vielfaches von " +
+      num(takt) + " Min – " + fullTakte + " volle " + plural(fullTakte, "Takt", "Takte") +
+      " und " + clock(rest) + " Rest. Mit " + vehicles + " " +
+      plural(vehicles, "Fahrzeug", "Fahrzeugen") + " deckt der Umlauf " + clock(covered) +
+      " ab, es bleiben " + clock(buffer) + " Puffer. Taktrein wird es, wenn die Wendezeiten " +
+      "zusammen um " + clock(buffer) + " steigen" +
+      (canShorten ? " (oder um " + clock(rest) + " sinken)" : "") + ".";
+    warnTakt.hidden = false;
   }
 
   function renderSummary() {
@@ -1896,6 +2228,8 @@
 
     subOut.textContent = dirs.out.entries.length ? clock(tOut.totalSeconds) : "";
     subBack.textContent = dirs.back.entries.length ? clock(tBack.totalSeconds) : "";
+
+    renderUmlauf(tOut, tBack);
 
     printHead.textContent = "";
     var lineLabel = lineInput.value.trim();
@@ -1952,7 +2286,6 @@
 
     if (n === 0) {
       headlineEl.textContent = "Noch keine Haltestellen gesetzt.";
-      totalsEl.hidden = true;
       detailsEl.hidden = true;
       warnEl.hidden = true;
       return;
@@ -1961,7 +2294,6 @@
     if (n === 1) {
       headlineEl.textContent = dir().label + ": nur eine Haltestelle (" + nameOf(rows[0]) +
         ") – setze mindestens eine weitere, damit eine Fahrzeit entsteht.";
-      totalsEl.hidden = true;
       detailsEl.hidden = true;
       warnEl.hidden = true;
       return;
@@ -1982,17 +2314,6 @@
         overStops + " (" + minutesLabel(tActive.driveSeconds) + " Fahrt, " +
         clock(tActive.dwellSeconds) + " Aufenthalt)";
     }
-
-    totalsBody.textContent = "";
-    totalsBody.appendChild(totalsRow("Hinfahrt", tOut, activeDir === "out" ? "active" : ""));
-    totalsBody.appendChild(totalsRow("Rückfahrt", tBack, activeDir === "back" ? "active" : ""));
-    totalsBody.appendChild(totalsRow("Linienumlauf", {
-      stops: null,
-      driveSeconds: tOut.driveSeconds + tBack.driveSeconds,
-      dwellSeconds: tOut.dwellSeconds + tBack.dwellSeconds,
-      totalSeconds: tOut.totalSeconds + tBack.totalSeconds
-    }, "cycle"));
-    totalsEl.hidden = false;
 
     var parts = [];
     var line = lineInput.value.trim();
@@ -2016,8 +2337,6 @@
       parts.push("längste Teilstrecke: " + tActive.longest.from + " → " + tActive.longest.to +
                  " (" + num(tActive.longest.minutes) + " Min.)");
     }
-    parts.push("Umlaufzeit ohne Wendezeit");
-
     detailsEl.textContent = parts.join("  ·  ");
     detailsEl.hidden = false;
 
@@ -2117,6 +2436,11 @@
     applyEstimates();
     refreshRows();
     renderSummary();
+  });
+
+  // Wendezeiten und Takt wirken nur auf die Umlaufrechnung.
+  [wendeEndInput, wendeStartInput, taktInput].forEach(function (input) {
+    input.addEventListener("input", renderSummary);
   });
 
   btnFit.addEventListener("click", fitRoute);
