@@ -12,18 +12,25 @@
 
 <style>
   :root {
-    --bg: #f4f6f9;
+    --bg: #eceef1;
     --panel: #ffffff;
-    --line: #dde3ec;
-    --text: #1c2430;
-    --muted: #6b7789;
-    --accent: #0b5cab;
-    --accent-soft: #e7f0fa;
-    --start: #1a8a4a;
-    --end: #c0392b;
-    --warn: #a45b00;
-    --warn-bg: #fff5e3;
-    --radius: 10px;
+    --panel-alt: #f5f6f8;
+    --line: #ccd1d7;
+    --line-soft: #e2e5e9;
+    --text: #22272c;
+    --muted: #6b727a;
+    --muted-2: #8b929a;
+    --accent: #3c5a78;
+    --accent-soft: #e7ecf1;
+    --pin: #5b666f;
+    --pin-start: #3f5c4a;
+    --pin-end: #7a4f47;
+    --warn: #7a5a1e;
+    --warn-bg: #f7f1e1;
+    --warn-line: #ddd0ab;
+    --r: 3px;
+
+    --grid: 26px minmax(120px, 1fr) 116px 62px 118px;
   }
 
   * { box-sizing: border-box; }
@@ -33,13 +40,20 @@
     padding: 0;
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.5 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
   }
 
   .wrap {
-    max-width: 1080px;
+    max-width: 1000px;
     margin: 0 auto;
-    padding: 16px 16px 64px;
+    padding: 14px 14px 40px;
   }
 
   /* ---------- Kopfbereich ---------- */
@@ -48,127 +62,143 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 16px;
-    padding: 4px 2px 16px;
+    gap: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 12px;
   }
 
   header.app h1 {
     margin: 0;
-    font-size: 22px;
-    letter-spacing: -0.2px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
   }
 
-  header.app p.sub {
-    margin: 2px 0 0;
+  header.app .sub {
+    margin: 1px 0 0;
     color: var(--muted);
-    font-size: 13px;
+    font-size: 11.5px;
   }
 
-  .line-field {
+  .controls {
     margin-left: auto;
     display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--muted);
+    gap: 14px;
+    align-items: flex-start;
   }
 
-  .line-field input {
-    width: 110px;
-    padding: 7px 9px;
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .ctrl > .cap {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .ctrl input {
+    width: 86px;
+    padding: 4px 6px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--r);
+    background: var(--panel);
     font: inherit;
     font-weight: 600;
     color: var(--text);
-    background: var(--panel);
   }
+
+  .ctrl input:focus { outline: none; border-color: var(--accent); }
+  .ctrl input.factor { width: 66px; text-align: right; }
+  .ctrl .hint { font-size: 10.5px; color: var(--muted-2); }
 
   /* ---------- Karte ---------- */
 
   .map-card {
     position: relative;
-    background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: var(--r);
     overflow: hidden;
-    box-shadow: 0 1px 2px rgba(16, 30, 54, 0.06);
+    background: var(--panel);
   }
 
   #map {
-    height: 56vh;
-    min-height: 340px;
+    height: 46vh;
+    min-height: 300px;
     width: 100%;
-    background: #e8eef4;
+    background: #dfe3e7;
   }
 
   .map-hint {
     position: absolute;
-    left: 50%;
-    bottom: 16px;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 500;
-    background: rgba(28, 36, 48, 0.88);
-    color: #fff;
-    padding: 8px 14px;
-    border-radius: 999px;
-    font-size: 13px;
+    background: rgba(34, 39, 44, 0.82);
+    color: #eef0f2;
+    padding: 5px 10px;
+    font-size: 11.5px;
     pointer-events: none;
-    max-width: calc(100% - 24px);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .map-hint[hidden] { display: none; }
 
-  /* Nummerierte Marker */
   .stop-pin {
-    background: var(--accent);
+    background: var(--pin);
     color: #fff;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    width: 21px;
+    height: 21px;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 0 1px rgba(34, 39, 44, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 600;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
-  .stop-pin.is-start { background: var(--start); }
-  .stop-pin.is-end   { background: var(--end); }
+  .stop-pin.is-start { background: var(--pin-start); }
+  .stop-pin.is-end   { background: var(--pin-end); }
 
   /* Namensfeld im Marker-Popup */
+  .leaflet-popup-content-wrapper { border-radius: var(--r); }
+  .leaflet-popup-content { margin: 9px 11px; }
+
   .pop-label {
     display: block;
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--muted);
-    margin-bottom: 5px;
+    color: var(--muted-2);
+    margin-bottom: 4px;
   }
 
   .pop-name {
     width: 100%;
-    padding: 6px 8px;
+    padding: 4px 6px;
     border: 1px solid var(--line);
-    border-radius: 7px;
+    border-radius: var(--r);
     font: inherit;
     font-weight: 600;
     color: var(--text);
   }
 
-  .pop-name:focus { border-color: var(--accent); outline: none; }
+  .pop-name:focus { outline: none; border-color: var(--accent); }
 
   .pop-hint {
-    margin: 6px 0 0;
-    font-size: 11px;
-    color: var(--muted);
+    margin: 5px 0 0;
+    font-size: 10.5px;
+    color: var(--muted-2);
   }
 
   /* ---------- Werkzeugleiste ---------- */
@@ -176,33 +206,71 @@
   .toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
-    margin: 14px 0 10px;
+    padding: 8px 0;
   }
 
-  .toolbar .count {
+  .status {
     margin-right: auto;
-    font-size: 13px;
+    font-size: 11.5px;
     color: var(--muted);
   }
+
+  .status .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin: 0 4px 0 0;
+    vertical-align: 1px;
+    background: var(--muted-2);
+  }
+
+  .status .dot:first-child { margin-left: 0; }
+  .status .dot.road    { background: var(--accent); }
+  .status .dot.pending { background: #b99a4e; }
+  .status .dot.air     { background: var(--muted-2); }
 
   button {
     font: inherit;
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: var(--r);
     border: 1px solid var(--line);
     background: var(--panel);
     color: var(--text);
-    padding: 7px 12px;
-    transition: background 0.12s, border-color 0.12s;
+    padding: 4px 9px;
   }
 
-  button:hover:not(:disabled) { background: var(--accent-soft); border-color: #b9d2ea; }
+  button:hover:not(:disabled) { background: var(--accent-soft); border-color: #aab8c6; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   button:disabled { opacity: 0.35; cursor: default; }
-  button.danger:hover:not(:disabled) { background: #fdecea; border-color: #f0b7b0; color: var(--end); }
 
-  /* ---------- Haltestellenliste ---------- */
+  /* ---------- Haltestellentabelle ---------- */
+
+  .table {
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: var(--panel);
+    overflow: hidden;
+  }
+
+  .thead {
+    display: grid;
+    grid-template-columns: var(--grid);
+    gap: 8px;
+    align-items: center;
+    padding: 5px 9px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .thead .r { text-align: right; }
 
   ol.stops {
     list-style: none;
@@ -211,212 +279,261 @@
   }
 
   .stop {
-    display: flex;
+    display: grid;
+    grid-template-columns: var(--grid);
+    gap: 8px;
     align-items: center;
-    gap: 10px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 10px 12px;
-    box-shadow: 0 1px 2px rgba(16, 30, 54, 0.05);
+    padding: 3px 9px;
+    border-bottom: 1px solid var(--line-soft);
   }
 
+  .stop:last-child { border-bottom: 0; }
+  .stop:hover { background: #fafbfc; }
+
   .badge {
-    flex: 0 0 auto;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--accent);
+    width: 20px;
+    height: 20px;
+    border-radius: 2px;
+    background: var(--pin);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
-  .badge.is-start { background: var(--start); }
-  .badge.is-end   { background: var(--end); }
-
-  .stop .fields {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
+  .badge.is-start { background: var(--pin-start); }
+  .badge.is-end   { background: var(--pin-end); }
 
   .stop input.name {
     width: 100%;
     border: 1px solid transparent;
-    border-radius: 7px;
-    padding: 5px 7px;
+    border-radius: var(--r);
+    padding: 3px 5px;
     font: inherit;
     font-weight: 600;
     color: var(--text);
     background: transparent;
+    min-width: 0;
   }
 
-  .stop input.name:hover { border-color: var(--line); }
-  .stop input.name:focus { border-color: var(--accent); outline: none; background: #fff; }
+  .stop input.name:hover { border-color: var(--line-soft); }
+  .stop input.name:focus { outline: none; border-color: var(--accent); background: #fff; }
 
   .stop .coords {
-    display: block;
-    padding: 0 8px;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--muted);
-    font-variant-numeric: tabular-nums;
   }
 
   .stop .role {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 600;
     letter-spacing: 0.5px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent);
+    text-transform: uppercase;
+    color: var(--muted);
     white-space: nowrap;
   }
 
-  .stop .role.is-start { background: #e4f4ea; color: var(--start); }
-  .stop .role.is-end   { background: #fdecea; color: var(--end); }
-
   .stop .actions {
     display: flex;
-    gap: 4px;
-    flex: 0 0 auto;
+    gap: 3px;
+    justify-content: flex-end;
   }
 
   .stop .actions button {
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 24px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1;
+    color: var(--muted);
   }
 
-  /* ---------- Teilstrecke / Fahrzeit ---------- */
+  /* ---------- Teilstrecke ---------- */
 
   .leg {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
-    padding: 6px 0 6px 26px;
+    gap: 8px;
+    padding: 4px 9px 4px 35px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line-soft);
     position: relative;
   }
 
   .leg::before {
     content: "";
     position: absolute;
-    left: 25px;
+    left: 19px;
     top: 0;
     bottom: 0;
-    width: 2px;
-    background: repeating-linear-gradient(
-      to bottom, var(--accent) 0 5px, transparent 5px 10px
-    );
+    width: 1px;
+    background: var(--line);
   }
 
-  .leg label {
+  .leg .fz {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
+    gap: 5px;
+    font-size: 11px;
     color: var(--muted);
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 4px 12px 4px 10px;
   }
 
   .leg input.minutes {
-    width: 62px;
+    width: 48px;
     border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 4px 6px;
+    border-radius: var(--r);
+    padding: 2px 5px;
     font: inherit;
     font-weight: 600;
     color: var(--text);
     text-align: right;
+    background: var(--panel);
+    font-variant-numeric: tabular-nums;
   }
 
-  .leg input.minutes:focus { border-color: var(--accent); outline: none; }
-  .leg input.minutes.missing { border-color: #e0b877; background: var(--warn-bg); }
+  .leg input.minutes:focus { outline: none; border-color: var(--accent); }
+  .leg input.minutes.missing { border-color: var(--warn-line); background: var(--warn-bg); }
 
-  .leg .air {
-    font-size: 12px;
+  .leg .tag {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    color: var(--muted);
+    background: var(--panel);
+    white-space: nowrap;
+  }
+
+  .leg .tag.manual { border-color: #b9c3cd; color: var(--accent); }
+
+  .leg .info { font-size: 11px; color: var(--muted-2); }
+  .leg .info.fail { color: var(--warn); }
+
+  .leg button.reset {
+    width: 22px;
+    height: 20px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
     color: var(--muted);
   }
 
-  /* ---------- Leerzustand ---------- */
+  .leg button.reset[hidden] { display: none; }
 
   .empty {
-    background: var(--panel);
-    border: 1px dashed var(--line);
-    border-radius: var(--radius);
-    padding: 26px 18px;
+    padding: 22px 12px;
     text-align: center;
     color: var(--muted);
+    font-size: 12px;
   }
 
   /* ---------- Zusammenfassung ---------- */
 
   .summary {
-    margin-top: 22px;
-    background: var(--panel);
+    margin-top: 12px;
     border: 1px solid var(--line);
-    border-left: 5px solid var(--accent);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    box-shadow: 0 1px 2px rgba(16, 30, 54, 0.06);
+    border-radius: var(--r);
+    background: var(--panel);
   }
 
-  .summary h2 {
-    margin: 0 0 8px;
-    font-size: 12px;
+  .summary .head {
+    padding: 5px 11px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--muted);
+    color: var(--muted-2);
   }
+
+  .summary .body { padding: 11px; }
 
   .summary .headline {
-    font-size: 19px;
+    font-size: 15px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.35;
+  }
+
+  .metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 10px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+  }
+
+  .metric {
+    flex: 1 1 130px;
+    padding: 6px 10px;
+    border-right: 1px solid var(--line-soft);
+  }
+
+  .metric:last-child { border-right: 0; }
+
+  .metric dt {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .metric dd {
+    margin: 1px 0 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
   .summary .details {
-    margin-top: 8px;
-    font-size: 13px;
+    margin-top: 9px;
+    font-size: 11.5px;
     color: var(--muted);
   }
 
   .summary .warn {
-    margin-top: 10px;
+    margin-top: 9px;
     background: var(--warn-bg);
-    border: 1px solid #f0dcb4;
+    border: 1px solid var(--warn-line);
     color: var(--warn);
-    border-radius: 8px;
-    padding: 8px 11px;
-    font-size: 13px;
+    border-radius: var(--r);
+    padding: 6px 9px;
+    font-size: 11.5px;
   }
 
   .loaderr {
-    background: #fdecea;
-    border: 1px solid #f0b7b0;
-    color: #8c2b20;
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    margin-bottom: 14px;
+    background: #f6ece9;
+    border: 1px solid #dcbfb8;
+    color: #6f3a30;
+    border-radius: var(--r);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
   }
 
-  @media (max-width: 620px) {
-    .stop { flex-wrap: wrap; }
-    .stop .actions { margin-left: auto; }
-    .stop .role { order: 3; }
-    .leg { flex-wrap: wrap; }
+  .foot {
+    margin-top: 10px;
+    font-size: 10.5px;
+    color: var(--muted-2);
+  }
+
+  @media (max-width: 700px) {
+    :root { --grid: 24px minmax(90px, 1fr) 92px; }
+    .thead .c-role, .thead .c-act, .stop .role { display: none; }
+    .stop .actions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 32px; }
+    .controls { margin-left: 0; width: 100%; }
   }
 </style>
 </head>
@@ -427,12 +544,19 @@
   <header class="app">
     <div>
       <h1>Routenplaner Buslinie</h1>
-      <p class="sub">Klick in die Karte setzt eine Haltestelle &middot; Reihenfolge und Fahrzeiten unten pflegen</p>
+      <p class="sub">Klick in die Karte setzt eine Haltestelle &middot; Fahrzeiten werden über OSRM geschätzt und bleiben überschreibbar</p>
     </div>
-    <label class="line-field">
-      Linie
-      <input id="lineNo" type="text" value="697" maxlength="12" aria-label="Liniennummer">
-    </label>
+    <div class="controls">
+      <label class="ctrl">
+        <span class="cap">Linie</span>
+        <input id="lineNo" type="text" value="697" maxlength="12">
+      </label>
+      <label class="ctrl">
+        <span class="cap">Bus-Faktor</span>
+        <input id="busFactor" class="factor num" type="number" min="0.5" max="4" step="0.05" value="1.4">
+        <span class="hint">Pkw-Zeit × Faktor</span>
+      </label>
+    </div>
   </header>
 
   <div id="loaderr" class="loaderr" hidden>
@@ -443,23 +567,41 @@
 
   <div class="map-card">
     <div id="map"></div>
-    <div id="mapHint" class="map-hint">Klicke in die Karte, um die erste Haltestelle zu setzen</div>
+    <div id="mapHint" class="map-hint">Klick in die Karte setzt die erste Haltestelle.</div>
   </div>
 
   <div class="toolbar">
-    <span class="count" id="count">Noch keine Haltestellen</span>
+    <span class="status" id="status">Noch keine Haltestellen</span>
     <button id="btnFit" type="button" disabled>Route einpassen</button>
-    <button id="btnClear" type="button" class="danger" disabled>Alle löschen</button>
+    <button id="btnRetry" type="button" disabled>Routing wiederholen</button>
+    <button id="btnClear" type="button" disabled>Alle löschen</button>
   </div>
 
-  <ol class="stops" id="list"></ol>
+  <div class="table">
+    <div class="thead">
+      <span>#</span>
+      <span>Haltestelle</span>
+      <span>Koordinaten</span>
+      <span class="c-role">Rolle</span>
+      <span class="c-act r">Aktion</span>
+    </div>
+    <ol class="stops" id="list"></ol>
+  </div>
 
   <section class="summary" aria-live="polite">
-    <h2>Zusammenfassung</h2>
-    <div class="headline" id="headline">Noch keine Haltestellen gesetzt.</div>
-    <div class="details" id="details" hidden></div>
-    <div class="warn" id="warn" hidden></div>
+    <div class="head">Zusammenfassung</div>
+    <div class="body">
+      <div class="headline" id="headline">Noch keine Haltestellen gesetzt.</div>
+      <dl class="metrics" id="metrics" hidden></dl>
+      <div class="details" id="details" hidden></div>
+      <div class="warn" id="warn" hidden></div>
+    </div>
   </section>
+
+  <p class="foot">
+    Routing: OSRM-Demoserver, Profil „driving" als Näherung – es gibt kein
+    öffentliches Bus-Profil. Fahrzeiten sind Schätzwerte, kein Fahrplan.
+  </p>
 
 </div>
 
@@ -471,39 +613,58 @@
 (function () {
   "use strict";
 
+  /* ==================================================================
+     Zentrale Einstellungen
+     ================================================================== */
+  var CONFIG = {
+    center: [52.3959, 13.0645],     // Potsdam
+    zoom: 12,
+
+    // Öffentlicher OSRM-Demoserver. Profil "driving" als Näherung,
+    // ein öffentliches Bus-Profil gibt es dort nicht.
+    osrmBase: "https://router.project-osrm.org/route/v1/driving/",
+
+    // Startwert des Bus-Faktors; im Kopfbereich änderbar.
+    busFactor: 1.4,
+
+    requestTimeoutMs: 8000,
+
+    // OSRM setzt Koordinaten auf die nächste Straße. Liegt eine
+    // Haltestelle weiter als das entfernt, ist der Treffer unbrauchbar.
+    maxSnapMeters: 2000
+  };
+
   if (typeof L === "undefined") {
     document.getElementById("loaderr").hidden = false;
     return;
   }
 
-  var POTSDAM = [52.3959, 13.0645];
-
-  /* ------------------------------------------------------------------
+  /* ==================================================================
      Zustand
 
-     Jede Haltestelle trägt ihre Fahrzeit von der VORHERIGEN Haltestelle
-     in `minutes`. Beim Verschieben oder Löschen wandert die Zeit damit
-     zusammen mit der Haltestelle; bei der ersten Haltestelle bleibt das
-     Feld ungenutzt, weil es davor keine Teilstrecke gibt.
-     ------------------------------------------------------------------ */
+     Jede Haltestelle trägt in `minutes` die Fahrzeit von der VORHERIGEN
+     Haltestelle. `manual` merkt sich, ob dieser Wert von Hand kommt –
+     dann überschreibt ihn die OSRM-Schätzung nicht mehr. `leg` zeigt auf
+     den Routing-Eintrag der Teilstrecke, die zu dieser Haltestelle führt.
+     ================================================================== */
   var stops = [];
   var nextId = 1;
 
-  /* ------------------------------------------------------------------
+  // Routing-Ergebnisse, gemerkt je Koordinatenpaar: Umsortieren oder
+  // Löschen fragt bereits bekannte Teilstrecken nicht erneut an.
+  var routeCache = {};
+
+  /* ==================================================================
      Karte
-     ------------------------------------------------------------------ */
-  var map = L.map("map", { doubleClickZoom: true }).setView(POTSDAM, 12);
+     ================================================================== */
+  var map = L.map("map", { doubleClickZoom: true }).setView(CONFIG.center, CONFIG.zoom);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
   }).addTo(map);
 
-  var routeLine = L.polyline([], {
-    color: "#0b5cab",
-    weight: 4,
-    opacity: 0.75
-  }).addTo(map);
+  var routeLayer = L.layerGroup().addTo(map);
 
   // Ein Doppelklick (Zoom) darf keine zwei Haltestellen erzeugen: der
   // einzelne Klick wird kurz verzögert und bei dblclick wieder verworfen.
@@ -522,13 +683,13 @@
     if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
   });
 
-  /* ------------------------------------------------------------------
+  /* ==================================================================
      Hilfsfunktionen
-     ------------------------------------------------------------------ */
+     ================================================================== */
 
-  function num(value) {
-    // Deutsche Schreibweise mit Komma, ohne überflüssiges ",0".
-    return String(Math.round(value * 10) / 10).replace(".", ",");
+  function num(value, digits) {
+    var f = Math.pow(10, digits === undefined ? 1 : digits);
+    return String(Math.round(value * f) / f).replace(".", ",");
   }
 
   function plural(value, one, many) {
@@ -556,21 +717,157 @@
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
-  function totalAirKm() {
-    var sum = 0;
-    for (var i = 1; i < stops.length; i++) {
-      sum += haversineKm(stops[i - 1], stops[i]);
-    }
-    return sum;
-  }
-
   function stopName(i) {
     return stops[i].name.trim() || "Haltestelle " + (i + 1);
   }
 
-  /* ------------------------------------------------------------------
+  function busFactor() {
+    var raw = String(factorInput.value).trim().replace(",", ".");
+    var value = parseFloat(raw);
+    return (isNaN(value) || value <= 0) ? CONFIG.busFactor : value;
+  }
+
+  /* ==================================================================
+     OSRM-Routing
+
+     Ein Cache-Eintrag: { status: "pending" | "ok" | "fail",
+                          seconds, km, coords, reason }
+     ================================================================== */
+
+  function legKey(a, b) {
+    return a.lat.toFixed(5) + "," + a.lng.toFixed(5) + ";" +
+           b.lat.toFixed(5) + "," + b.lng.toFixed(5);
+  }
+
+  function routeFor(a, b) {
+    var key = legKey(a, b);
+    if (routeCache[key]) { return routeCache[key]; }
+
+    var entry = { status: "pending", seconds: 0, km: 0, coords: null, reason: "" };
+    routeCache[key] = entry;
+    requestRoute(entry, a, b);
+    return entry;
+  }
+
+  function requestRoute(entry, a, b) {
+    if (typeof window.fetch !== "function") {
+      entry.status = "fail";
+      entry.reason = "Browser ohne fetch";
+      return;
+    }
+
+    var url = CONFIG.osrmBase +
+      a.lng.toFixed(6) + "," + a.lat.toFixed(6) + ";" +
+      b.lng.toFixed(6) + "," + b.lat.toFixed(6) +
+      "?overview=full&geometries=geojson";
+
+    var controller = (typeof AbortController === "function") ? new AbortController() : null;
+    var timer = window.setTimeout(function () {
+      if (controller) { controller.abort(); }
+    }, CONFIG.requestTimeoutMs);
+
+    window.fetch(url, controller ? { signal: controller.signal } : undefined)
+      .then(function (response) {
+        if (!response.ok) { throw new Error("HTTP " + response.status); }
+        return response.json();
+      })
+      .then(function (data) {
+        window.clearTimeout(timer);
+        var route = usableRoute(data);
+        if (route) {
+          entry.status = "ok";
+          entry.seconds = route.duration;
+          entry.km = route.distance / 1000;
+          entry.coords = route.geometry.coordinates.map(function (c) {
+            return [c[1], c[0]];          // GeoJSON liefert lon,lat
+          });
+        } else {
+          entry.status = "fail";
+          entry.reason = "keine Route";
+        }
+        onRoutingChanged();
+      })
+      .catch(function (err) {
+        window.clearTimeout(timer);
+        entry.status = "fail";
+        entry.reason = (err && err.name === "AbortError")
+          ? "Zeitüberschreitung"
+          : "Dienst nicht erreichbar";
+        onRoutingChanged();
+      });
+  }
+
+  // OSRM antwortet auch dann mit "Ok", wenn es die Punkte über hunderte
+  // Kilometer auf die nächste Straße gezogen hat. Solche Treffer und
+  // Nullstrecken sind für eine Haltestelle unbrauchbar.
+  function usableRoute(data) {
+    if (!data || data.code !== "Ok" || !data.routes || !data.routes.length) { return null; }
+
+    var waypoints = data.waypoints || [];
+    for (var i = 0; i < waypoints.length; i++) {
+      if (typeof waypoints[i].distance === "number" &&
+          waypoints[i].distance > CONFIG.maxSnapMeters) {
+        return null;
+      }
+    }
+
+    var route = data.routes[0];
+    if (!route.geometry || !route.geometry.coordinates ||
+        route.geometry.coordinates.length < 2 || !(route.distance > 0)) {
+      return null;
+    }
+    return route;
+  }
+
+  // Ordnet jeder Haltestelle die Teilstrecke zu, die zu ihr führt, und
+  // stößt fehlende Anfragen an.
+  function syncRoutes() {
+    if (stops.length) { stops[0].leg = null; }
+    for (var i = 1; i < stops.length; i++) {
+      stops[i].leg = routeFor(stops[i - 1], stops[i]);
+    }
+    applyEstimates();
+    drawRoutes();
+  }
+
+  function estimateMinutes(leg) {
+    if (!leg || leg.status !== "ok") { return null; }
+    return Math.max(1, Math.round(leg.seconds / 60 * busFactor()));
+  }
+
+  // Trägt Schätzungen nur dort ein, wo noch nichts von Hand steht.
+  function applyEstimates() {
+    for (var i = 1; i < stops.length; i++) {
+      if (!stops[i].manual) {
+        stops[i].minutes = estimateMinutes(stops[i].leg);
+      }
+    }
+  }
+
+  // Läuft, sobald eine OSRM-Antwort eintrifft.
+  function onRoutingChanged() {
+    applyEstimates();
+    drawRoutes();
+    refreshLegs();
+    renderSummary();
+  }
+
+  function retryFailedRoutes() {
+    for (var i = 1; i < stops.length; i++) {
+      var leg = stops[i].leg;
+      if (leg && leg.status === "fail") {
+        leg.status = "pending";
+        leg.reason = "";
+        requestRoute(leg, stops[i - 1], stops[i]);
+      }
+    }
+    refreshLegs();
+    renderSummary();
+  }
+
+  /* ==================================================================
      Haltestellen anlegen, benennen, umsortieren, löschen
-     ------------------------------------------------------------------ */
+     ================================================================== */
 
   function addStop(lat, lng) {
     var stop = {
@@ -578,9 +875,12 @@
       name: "Haltestelle " + (stops.length + 1),
       lat: lat,
       lng: lng,
-      minutes: null,      // Fahrzeit von der vorherigen Haltestelle
+      minutes: null,
+      manual: false,
+      leg: null,
       marker: null,
-      popupInput: null
+      popupInput: null,
+      ui: null
     };
 
     stop.marker = L.marker([lat, lng], {
@@ -588,7 +888,8 @@
       draggable: true,
       keyboard: false
     }).addTo(map);
-    stop.marker.bindPopup(buildNamePopup(stop), { minWidth: 210, autoPan: true });
+
+    stop.marker.bindPopup(buildNamePopup(stop), { minWidth: 190, autoPan: true });
 
     stop.marker.on("popupopen", function () {
       if (stop.popupInput) { stop.popupInput.focus(); stop.popupInput.select(); }
@@ -598,11 +899,11 @@
       var pos = e.target.getLatLng();
       stop.lat = pos.lat;
       stop.lng = pos.lng;
-      drawRoute();
     });
 
     stop.marker.on("dragend", function () {
-      renderList();          // Koordinaten und Luftlinien neu ausgeben
+      syncRoutes();          // verschobene Haltestelle braucht neue Teilstrecken
+      renderList();
       renderSummary();
     });
 
@@ -626,11 +927,9 @@
     label.appendChild(input);
 
     var hint = L.DomUtil.create("p", "pop-hint", box);
-    hint.textContent = "Enter zum Übernehmen · Marker lässt sich verschieben";
+    hint.textContent = "Enter zum Übernehmen · Marker ist verschiebbar";
 
-    input.addEventListener("input", function () {
-      setName(stop, input.value, input);
-    });
+    input.addEventListener("input", function () { setName(stop, input.value, input); });
 
     // Tastatur- und Klickereignisse dürfen nicht an die Karte durchfallen
     // (sonst zoomt/pant Leaflet beim Tippen).
@@ -649,9 +948,7 @@
   function setName(stop, value, source) {
     stop.name = value;
 
-    if (stop.popupInput && stop.popupInput !== source) {
-      stop.popupInput.value = value;
-    }
+    if (stop.popupInput && stop.popupInput !== source) { stop.popupInput.value = value; }
 
     var listInput = list.querySelector('input.name[data-id="' + stop.id + '"]');
     if (listInput && listInput !== source) { listInput.value = value; }
@@ -661,7 +958,7 @@
       stop.marker.setTooltipContent((i + 1) + ". " + (stop.name.trim() || "ohne Namen"));
     }
 
-    renderLegLabels();
+    refreshLegs();
     renderSummary();
   }
 
@@ -684,13 +981,9 @@
     renderAll();
   }
 
-  /* ------------------------------------------------------------------
+  /* ==================================================================
      Karte zeichnen
-     ------------------------------------------------------------------ */
-
-  function drawRoute() {
-    routeLine.setLatLngs(stops.map(function (s) { return [s.lat, s.lng]; }));
-  }
+     ================================================================== */
 
   // Eigenes Icon statt der Leaflet-Standardgrafik: die Nummer steht direkt
   // im Marker und es werden keine zusätzlichen Bilddateien nachgeladen.
@@ -702,11 +995,31 @@
     return L.divIcon({
       className: "",
       html: '<div class="stop-pin' + role + '">' + (position + 1) + "</div>",
-      iconSize: [26, 26],
-      iconAnchor: [13, 13],
-      popupAnchor: [0, -14],
-      tooltipAnchor: [0, -14]
+      iconSize: [21, 21],
+      iconAnchor: [10, 10],
+      popupAnchor: [0, -12],
+      tooltipAnchor: [0, -12]
     });
+  }
+
+  // Durchgezogen entlang der Straße, wo OSRM eine Route geliefert hat;
+  // gestrichelte Luftlinie, solange oder falls keine vorliegt.
+  function drawRoutes() {
+    routeLayer.clearLayers();
+
+    for (var i = 1; i < stops.length; i++) {
+      var leg = stops[i].leg;
+
+      if (leg && leg.status === "ok" && leg.coords) {
+        L.polyline(leg.coords, {
+          color: "#3c5a78", weight: 3.5, opacity: 0.9
+        }).addTo(routeLayer);
+      } else {
+        L.polyline([[stops[i - 1].lat, stops[i - 1].lng], [stops[i].lat, stops[i].lng]], {
+          color: "#8b929a", weight: 2, opacity: 0.9, dashArray: "5,5"
+        }).addTo(routeLayer);
+      }
+    }
   }
 
   function renderMarkers() {
@@ -720,8 +1033,6 @@
         stop.marker.bindTooltip(label, { direction: "top" });
       }
     });
-
-    drawRoute();
   }
 
   function fitRoute() {
@@ -730,22 +1041,28 @@
       map.setView([stops[0].lat, stops[0].lng], Math.max(map.getZoom(), 14));
       return;
     }
-    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+    var bounds = L.latLngBounds(stops.map(function (s) { return [s.lat, s.lng]; }));
+    routeLayer.eachLayer(function (layer) {
+      if (layer.getBounds) { bounds.extend(layer.getBounds()); }
+    });
+    map.fitBounds(bounds, { padding: [30, 30] });
   }
 
-  /* ------------------------------------------------------------------
-     Liste zeichnen
-     ------------------------------------------------------------------ */
+  /* ==================================================================
+     Tabelle zeichnen
+     ================================================================== */
 
   var list = document.getElementById("list");
 
   function renderList() {
     list.textContent = "";
+    stops.forEach(function (stop) { stop.ui = null; });
 
     if (stops.length === 0) {
       var empty = document.createElement("li");
       empty.className = "empty";
-      empty.textContent = "Noch keine Haltestellen. Klicke in die Karte, um die erste zu setzen.";
+      empty.textContent = "Noch keine Haltestellen. Klick in die Karte setzt die erste.";
       list.appendChild(empty);
       return;
     }
@@ -768,9 +1085,6 @@
     badge.textContent = String(i + 1);
     li.appendChild(badge);
 
-    var fields = document.createElement("div");
-    fields.className = "fields";
-
     var name = document.createElement("input");
     name.className = "name";
     name.type = "text";
@@ -778,49 +1092,39 @@
     name.placeholder = "Name der Haltestelle";
     name.setAttribute("data-id", String(stop.id));
     name.setAttribute("aria-label", "Name der " + (i + 1) + ". Haltestelle");
-
     name.addEventListener("input", function () { setName(stop, name.value, name); });
     name.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { name.blur(); }
     });
-
-    fields.appendChild(name);
+    li.appendChild(name);
 
     var coords = document.createElement("span");
-    coords.className = "coords";
-    coords.textContent = stop.lat.toFixed(5) + ", " + stop.lng.toFixed(5);
-    fields.appendChild(coords);
+    coords.className = "coords num";
+    coords.textContent = stop.lat.toFixed(5) + " " + stop.lng.toFixed(5);
+    li.appendChild(coords);
 
-    li.appendChild(fields);
-
-    if (isStart || isEnd) {
-      var role = document.createElement("span");
-      role.className = "role " + (isStart ? "is-start" : "is-end");
-      role.textContent = isStart ? "Start" : "Ziel";
-      li.appendChild(role);
-    }
+    var role = document.createElement("span");
+    role.className = "role";
+    role.textContent = isStart ? "Start" : (isEnd ? "Ziel" : "");
+    li.appendChild(role);
 
     var actions = document.createElement("div");
     actions.className = "actions";
-
     actions.appendChild(iconButton("↑", "Nach oben schieben", i === 0, function () {
       moveStop(i, -1);
     }));
-
     actions.appendChild(iconButton("↓", "Nach unten schieben", i === stops.length - 1, function () {
       moveStop(i, 1);
     }));
-
     actions.appendChild(iconButton("◎", "Auf der Karte zeigen", false, function () {
       map.setView([stop.lat, stop.lng], Math.max(map.getZoom(), 15));
       stop.marker.openPopup();
     }));
-
-    var del = iconButton("✕", "Haltestelle löschen", false, function () { removeStop(i); });
-    del.className = "danger";
-    actions.appendChild(del);
-
+    actions.appendChild(iconButton("✕", "Haltestelle löschen", false, function () {
+      removeStop(i);
+    }));
     li.appendChild(actions);
+
     return li;
   }
 
@@ -839,87 +1143,190 @@
     var li = document.createElement("li");
     li.className = "leg";
 
-    var label = document.createElement("label");
-    label.appendChild(document.createTextNode("Fahrzeit"));
+    var fz = document.createElement("span");
+    fz.className = "fz";
+    fz.appendChild(document.createTextNode("Fahrzeit"));
 
     var input = document.createElement("input");
-    input.className = "minutes" + (stop.minutes === null ? " missing" : "");
+    input.className = "minutes";
     input.type = "number";
     input.min = "0";
     input.step = "1";
     input.inputMode = "decimal";
-    input.value = stop.minutes === null ? "" : String(stop.minutes);
     input.placeholder = "–";
     input.setAttribute("data-leg", String(i));
-    input.setAttribute("aria-label", legLabel(i));
 
     input.addEventListener("input", function () {
       var raw = input.value.trim();
       if (raw === "") {
+        // Leeres Feld gibt die Teilstrecke wieder für die Schätzung frei.
+        stop.manual = false;
         stop.minutes = null;
       } else {
         var parsed = parseFloat(raw.replace(",", "."));
-        stop.minutes = (isNaN(parsed) || parsed < 0) ? null : parsed;
+        if (!isNaN(parsed) && parsed >= 0) {
+          stop.manual = true;
+          stop.minutes = parsed;
+        }
       }
-      input.classList.toggle("missing", stop.minutes === null);
+      refreshLegs();
       renderSummary();
     });
 
-    label.appendChild(input);
-    label.appendChild(document.createTextNode("Min."));
-    li.appendChild(label);
+    // Beim Verlassen eines leeren Feldes die Schätzung wieder eintragen.
+    input.addEventListener("blur", function () {
+      if (input.value.trim() === "") {
+        stop.minutes = estimateMinutes(stop.leg);
+        refreshLegs();
+        renderSummary();
+      }
+    });
 
-    var air = document.createElement("span");
-    air.className = "air";
-    air.textContent = "≈ " + num(haversineKm(stops[i - 1], stop)) + " km Luftlinie";
-    li.appendChild(air);
+    fz.appendChild(input);
+    fz.appendChild(document.createTextNode("Min."));
+    li.appendChild(fz);
 
+    var tag = document.createElement("span");
+    tag.className = "tag";
+    li.appendChild(tag);
+
+    var reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "reset";
+    reset.textContent = "↺";
+    reset.title = "Zurück zur OSRM-Schätzung";
+    reset.setAttribute("aria-label", "Zurück zur OSRM-Schätzung");
+    reset.addEventListener("click", function () {
+      stop.manual = false;
+      stop.minutes = estimateMinutes(stop.leg);
+      refreshLegs();
+      renderSummary();
+    });
+    li.appendChild(reset);
+
+    var info = document.createElement("span");
+    info.className = "info";
+    li.appendChild(info);
+
+    stop.ui = { input: input, tag: tag, info: info, reset: reset };
+    updateLegRow(stop, i);
     return li;
   }
 
-  function legLabel(i) {
-    return "Fahrzeit in Minuten von " + stopName(i - 1) + " nach " + stopName(i);
-  }
+  // Aktualisiert eine Teilstrecken-Zeile, ohne die Tabelle neu zu bauen –
+  // damit bleibt der Fokus im gerade bearbeiteten Feld erhalten.
+  function updateLegRow(stop, i) {
+    var ui = stop.ui;
+    if (!ui) { return; }
 
-  // Nach einer Umbenennung nur die Beschriftungen nachziehen, damit die
-  // Eingabefelder ihren Fokus behalten.
-  function renderLegLabels() {
-    var inputs = list.querySelectorAll("input.minutes");
-    for (var k = 0; k < inputs.length; k++) {
-      var idx = parseInt(inputs[k].getAttribute("data-leg"), 10);
-      if (idx > 0 && idx < stops.length) {
-        inputs[k].setAttribute("aria-label", legLabel(idx));
-      }
+    if (document.activeElement !== ui.input) {
+      ui.input.value = stop.minutes === null ? "" : String(stop.minutes);
+    }
+    ui.input.classList.toggle("missing", stop.minutes === null);
+    ui.input.setAttribute("aria-label",
+      "Fahrzeit in Minuten von " + stopName(i - 1) + " nach " + stopName(i));
+
+    var leg = stop.leg;
+    var airKm = haversineKm(stops[i - 1], stops[i]);
+
+    if (stop.manual) {
+      ui.tag.textContent = "manuell";
+      ui.tag.className = "tag manual";
+    } else if (leg && leg.status === "ok") {
+      ui.tag.textContent = "Schätzung ×" + num(busFactor(), 2);
+      ui.tag.className = "tag";
+    } else {
+      ui.tag.textContent = "offen";
+      ui.tag.className = "tag";
+    }
+
+    ui.reset.hidden = !(stop.manual && estimateMinutes(leg) !== null);
+
+    if (!leg || leg.status === "pending") {
+      ui.info.textContent = "Route wird berechnet …";
+      ui.info.className = "info";
+    } else if (leg.status === "ok") {
+      ui.info.textContent = num(leg.km) + " km Straße · Pkw " +
+        num(leg.seconds / 60, 0) + " Min.";
+      ui.info.className = "info";
+    } else {
+      ui.info.textContent = "OSRM: " + leg.reason + " · " + num(airKm) + " km Luftlinie";
+      ui.info.className = "info fail";
     }
   }
 
-  /* ------------------------------------------------------------------
+  function refreshLegs() {
+    for (var i = 1; i < stops.length; i++) { updateLegRow(stops[i], i); }
+  }
+
+  /* ==================================================================
      Zusammenfassung
-     ------------------------------------------------------------------ */
+     ================================================================== */
 
   var headlineEl = document.getElementById("headline");
+  var metricsEl = document.getElementById("metrics");
   var detailsEl = document.getElementById("details");
   var warnEl = document.getElementById("warn");
-  var countEl = document.getElementById("count");
+  var statusEl = document.getElementById("status");
   var lineInput = document.getElementById("lineNo");
+  var factorInput = document.getElementById("busFactor");
   var btnFit = document.getElementById("btnFit");
+  var btnRetry = document.getElementById("btnRetry");
   var btnClear = document.getElementById("btnClear");
   var mapHint = document.getElementById("mapHint");
 
+  function metric(term, value) {
+    var wrap = document.createElement("div");
+    wrap.className = "metric";
+    var dt = document.createElement("dt");
+    dt.textContent = term;
+    var dd = document.createElement("dd");
+    dd.textContent = value;
+    wrap.appendChild(dt);
+    wrap.appendChild(dd);
+    return wrap;
+  }
+
   function renderSummary() {
     var n = stops.length;
-
-    countEl.textContent = n === 0
-      ? "Noch keine Haltestellen"
-      : n + " " + plural(n, "Haltestelle", "Haltestellen") + " · " +
-        (n - 1) + " " + plural(n - 1, "Teilstrecke", "Teilstrecken");
 
     btnFit.disabled = n === 0;
     btnClear.disabled = n === 0;
     mapHint.hidden = n > 0;
 
+    // Routing-Zähler für die Statuszeile
+    var road = 0, pending = 0, failed = 0;
+    for (var k = 1; k < n; k++) {
+      var st = stops[k].leg ? stops[k].leg.status : "pending";
+      if (st === "ok") { road++; } else if (st === "pending") { pending++; } else { failed++; }
+    }
+    btnRetry.disabled = failed === 0;
+
+    statusEl.textContent = "";
+    if (n === 0) {
+      statusEl.textContent = "Noch keine Haltestellen";
+    } else {
+      var bits = [
+        [n + " " + plural(n, "Haltestelle", "Haltestellen"), null],
+        [road + " über Straße", "road"]
+      ];
+      if (pending) { bits.push([pending + " in Berechnung", "pending"]); }
+      if (failed) { bits.push([failed + " ohne Route", "air"]); }
+
+      bits.forEach(function (bit, idx) {
+        if (idx > 0) { statusEl.appendChild(document.createTextNode("  ·  ")); }
+        if (bit[1]) {
+          var dot = document.createElement("span");
+          dot.className = "dot " + bit[1];
+          statusEl.appendChild(dot);
+        }
+        statusEl.appendChild(document.createTextNode(bit[0]));
+      });
+    }
+
     if (n === 0) {
       headlineEl.textContent = "Noch keine Haltestellen gesetzt.";
+      metricsEl.hidden = true;
       detailsEl.hidden = true;
       warnEl.hidden = true;
       return;
@@ -928,6 +1335,7 @@
     if (n === 1) {
       headlineEl.textContent = "Nur eine Haltestelle (" + stopName(0) +
         ") – setze mindestens eine weitere, damit eine Fahrzeit entsteht.";
+      metricsEl.hidden = true;
       detailsEl.hidden = true;
       warnEl.hidden = true;
       return;
@@ -936,16 +1344,30 @@
     var legs = n - 1;
     var total = 0;
     var missing = 0;
+    var manual = 0;
+    var km = 0;
+    var kmIsPartlyAir = false;
     var longest = null;
 
     for (var i = 1; i < n; i++) {
-      var m = stops[i].minutes;
-      if (m === null) {
+      var stop = stops[i];
+      var leg = stop.leg;
+
+      if (leg && leg.status === "ok") {
+        km += leg.km;
+      } else {
+        km += haversineKm(stops[i - 1], stop);
+        kmIsPartlyAir = true;
+      }
+
+      if (stop.manual) { manual++; }
+
+      if (stop.minutes === null) {
         missing++;
       } else {
-        total += m;
-        if (longest === null || m > longest.minutes) {
-          longest = { minutes: m, from: stopName(i - 1), to: stopName(i) };
+        total += stop.minutes;
+        if (longest === null || stop.minutes > longest.minutes) {
+          longest = { minutes: stop.minutes, from: stopName(i - 1), to: stopName(i) };
         }
       }
     }
@@ -954,19 +1376,37 @@
     headlineEl.textContent = stopName(0) + " → " + stopName(n - 1) + ": " +
       minutesLabel(total) + " über " + n + " " + plural(n, "Haltestelle", "Haltestellen");
 
+    metricsEl.textContent = "";
+    metricsEl.appendChild(metric("Gesamtfahrzeit",
+      minutesLabel(total) + (total >= 60 ? " (" + asHours(total) + ")" : "")));
+    metricsEl.appendChild(metric("Haltestellen", String(n)));
+    metricsEl.appendChild(metric("Teilstrecken", String(legs)));
+    metricsEl.appendChild(metric("Streckenlänge",
+      num(km) + " km" + (kmIsPartlyAir ? " *" : "")));
+    metricsEl.hidden = false;
+
     var parts = [];
     var line = lineInput.value.trim();
     if (line) { parts.push("Linie " + line); }
-    parts.push(legs + " " + plural(legs, "Teilstrecke", "Teilstrecken"));
-    if (total >= 60) { parts.push("entspricht " + asHours(total)); }
+    var factorText = "Schätzung ×" + num(busFactor(), 2);
+    if (manual === 0) {
+      parts.push("alle " + legs + " " + plural(legs, "Teilstrecke", "Teilstrecken") +
+                 " als " + factorText);
+    } else if (manual === legs) {
+      parts.push("alle " + legs + " " + plural(legs, "Teilstrecke", "Teilstrecken") + " manuell");
+    } else {
+      parts.push(manual + " von " + legs + " " +
+                 plural(legs, "Teilstrecke", "Teilstrecken") +
+                 " manuell, Rest " + factorText);
+    }
     if (legs - missing > 0) {
       parts.push("Ø " + num(total / (legs - missing)) + " Min. je Teilstrecke");
     }
-    parts.push("≈ " + num(totalAirKm()) + " km Luftlinie");
     if (longest) {
       parts.push("längste Teilstrecke: " + longest.from + " → " + longest.to +
                  " (" + num(longest.minutes) + " Min.)");
     }
+    if (kmIsPartlyAir) { parts.push("* teilweise Luftlinie, da ohne Route"); }
 
     detailsEl.textContent = parts.join("  ·  ");
     detailsEl.hidden = false;
@@ -974,26 +1414,37 @@
     if (missing > 0) {
       warnEl.textContent = "⚠ " + missing + " von " + legs + " " +
         plural(legs, "Teilstrecke", "Teilstrecken") + " " +
-        plural(missing, "hat", "haben") +
-        " noch keine Fahrzeit – die Summe ist damit unvollständig.";
+        plural(missing, "hat", "haben") + " keine Fahrzeit " +
+        "(keine OSRM-Route und nichts von Hand eingetragen) – die Summe ist unvollständig.";
       warnEl.hidden = false;
     } else {
       warnEl.hidden = true;
     }
   }
 
-  /* ------------------------------------------------------------------
+  /* ==================================================================
      Verdrahtung
-     ------------------------------------------------------------------ */
+     ================================================================== */
 
   function renderAll() {
     renderMarkers();
+    syncRoutes();
     renderList();
     renderSummary();
   }
 
   lineInput.addEventListener("input", renderSummary);
+
+  // Ein neuer Faktor wirkt sofort auf alle geschätzten Teilstrecken,
+  // von Hand gesetzte Werte bleiben unangetastet.
+  factorInput.addEventListener("input", function () {
+    applyEstimates();
+    refreshLegs();
+    renderSummary();
+  });
+
   btnFit.addEventListener("click", fitRoute);
+  btnRetry.addEventListener("click", retryFailedRoutes);
 
   btnClear.addEventListener("click", function () {
     if (stops.length === 0) { return; }
