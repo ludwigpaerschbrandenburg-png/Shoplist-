@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Routenplaner Buslinie</title>
+
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --line: #dde3ec;
+    --text: #1c2430;
+    --muted: #6b7789;
+    --accent: #0b5cab;
+    --accent-soft: #e7f0fa;
+    --start: #1a8a4a;
+    --end: #c0392b;
+    --warn: #a45b00;
+    --warn-bg: #fff5e3;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 16px 16px 64px;
+  }
+
+  /* ---------- Kopfbereich ---------- */
+
+  header.app {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+    padding: 4px 2px 16px;
+  }
+
+  header.app h1 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: -0.2px;
+  }
+
+  header.app p.sub {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .line-field {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .line-field input {
+    width: 110px;
+    padding: 7px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel);
+  }
+
+  /* ---------- Karte ---------- */
+
+  .map-card {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(16, 30, 54, 0.06);
+  }
+
+  #map {
+    height: 56vh;
+    min-height: 340px;
+    width: 100%;
+    background: #e8eef4;
+  }
+
+  .map-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 500;
+    background: rgba(28, 36, 48, 0.88);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    pointer-events: none;
+    max-width: calc(100% - 24px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .map-hint[hidden] { display: none; }
+
+  /* Nummerierte Marker */
+  .stop-pin {
+    background: var(--accent);
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stop-pin.is-start { background: var(--start); }
+  .stop-pin.is-end   { background: var(--end); }
+
+  /* Namensfeld im Marker-Popup */
+  .pop-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  .pop-name {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .pop-name:focus { border-color: var(--accent); outline: none; }
+
+  .pop-hint {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ---------- Werkzeugleiste ---------- */
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 14px 0 10px;
+  }
+
+  .toolbar .count {
+    margin-right: auto;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text);
+    padding: 7px 12px;
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  button:hover:not(:disabled) { background: var(--accent-soft); border-color: #b9d2ea; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.danger:hover:not(:disabled) { background: #fdecea; border-color: #f0b7b0; color: var(--end); }
+
+  /* ---------- Haltestellenliste ---------- */
+
+  ol.stops {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .stop {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(16, 30, 54, 0.05);
+  }
+
+  .badge {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .badge.is-start { background: var(--start); }
+  .badge.is-end   { background: var(--end); }
+
+  .stop .fields {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .stop input.name {
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 5px 7px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    background: transparent;
+  }
+
+  .stop input.name:hover { border-color: var(--line); }
+  .stop input.name:focus { border-color: var(--accent); outline: none; background: #fff; }
+
+  .stop .coords {
+    display: block;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stop .role {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .stop .role.is-start { background: #e4f4ea; color: var(--start); }
+  .stop .role.is-end   { background: #fdecea; color: var(--end); }
+
+  .stop .actions {
+    display: flex;
+    gap: 4px;
+    flex: 0 0 auto;
+  }
+
+  .stop .actions button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  /* ---------- Teilstrecke / Fahrzeit ---------- */
+
+  .leg {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0 6px 26px;
+    position: relative;
+  }
+
+  .leg::before {
+    content: "";
+    position: absolute;
+    left: 25px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: repeating-linear-gradient(
+      to bottom, var(--accent) 0 5px, transparent 5px 10px
+    );
+  }
+
+  .leg label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 12px 4px 10px;
+  }
+
+  .leg input.minutes {
+    width: 62px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+  }
+
+  .leg input.minutes:focus { border-color: var(--accent); outline: none; }
+  .leg input.minutes.missing { border-color: #e0b877; background: var(--warn-bg); }
+
+  .leg .air {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ---------- Leerzustand ---------- */
+
+  .empty {
+    background: var(--panel);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 26px 18px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  /* ---------- Zusammenfassung ---------- */
+
+  .summary {
+    margin-top: 22px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: 0 1px 2px rgba(16, 30, 54, 0.06);
+  }
+
+  .summary h2 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+  }
+
+  .summary .headline {
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .summary .details {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .summary .warn {
+    margin-top: 10px;
+    background: var(--warn-bg);
+    border: 1px solid #f0dcb4;
+    color: var(--warn);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 13px;
+  }
+
+  .loaderr {
+    background: #fdecea;
+    border: 1px solid #f0b7b0;
+    color: #8c2b20;
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 620px) {
+    .stop { flex-wrap: wrap; }
+    .stop .actions { margin-left: auto; }
+    .stop .role { order: 3; }
+    .leg { flex-wrap: wrap; }
+  }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header class="app">
+    <div>
+      <h1>Routenplaner Buslinie</h1>
+      <p class="sub">Klick in die Karte setzt eine Haltestelle &middot; Reihenfolge und Fahrzeiten unten pflegen</p>
+    </div>
+    <label class="line-field">
+      Linie
+      <input id="lineNo" type="text" value="697" maxlength="12" aria-label="Liniennummer">
+    </label>
+  </header>
+
+  <div id="loaderr" class="loaderr" hidden>
+    <strong>Leaflet konnte nicht geladen werden.</strong>
+    Die Karte braucht beim Aufruf eine Internetverbindung (unpkg.com).
+    Ohne Karte funktionieren Liste und Fahrzeiten nicht.
+  </div>
+
+  <div class="map-card">
+    <div id="map"></div>
+    <div id="mapHint" class="map-hint">Klicke in die Karte, um die erste Haltestelle zu setzen</div>
+  </div>
+
+  <div class="toolbar">
+    <span class="count" id="count">Noch keine Haltestellen</span>
+    <button id="btnFit" type="button" disabled>Route einpassen</button>
+    <button id="btnClear" type="button" class="danger" disabled>Alle löschen</button>
+  </div>
+
+  <ol class="stops" id="list"></ol>
+
+  <section class="summary" aria-live="polite">
+    <h2>Zusammenfassung</h2>
+    <div class="headline" id="headline">Noch keine Haltestellen gesetzt.</div>
+    <div class="details" id="details" hidden></div>
+    <div class="warn" id="warn" hidden></div>
+  </section>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
+<script>
+(function () {
+  "use strict";
+
+  if (typeof L === "undefined") {
+    document.getElementById("loaderr").hidden = false;
+    return;
+  }
+
+  var POTSDAM = [52.3959, 13.0645];
+
+  /* ------------------------------------------------------------------
+     Zustand
+
+     Jede Haltestelle trägt ihre Fahrzeit von der VORHERIGEN Haltestelle
+     in `minutes`. Beim Verschieben oder Löschen wandert die Zeit damit
+     zusammen mit der Haltestelle; bei der ersten Haltestelle bleibt das
+     Feld ungenutzt, weil es davor keine Teilstrecke gibt.
+     ------------------------------------------------------------------ */
+  var stops = [];
+  var nextId = 1;
+
+  /* ------------------------------------------------------------------
+     Karte
+     ------------------------------------------------------------------ */
+  var map = L.map("map", { doubleClickZoom: true }).setView(POTSDAM, 12);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
+  }).addTo(map);
+
+  var routeLine = L.polyline([], {
+    color: "#0b5cab",
+    weight: 4,
+    opacity: 0.75
+  }).addTo(map);
+
+  // Ein Doppelklick (Zoom) darf keine zwei Haltestellen erzeugen: der
+  // einzelne Klick wird kurz verzögert und bei dblclick wieder verworfen.
+  var clickTimer = null;
+
+  map.on("click", function (e) {
+    if (clickTimer) { clearTimeout(clickTimer); }
+    var latlng = e.latlng;
+    clickTimer = setTimeout(function () {
+      clickTimer = null;
+      addStop(latlng.lat, latlng.lng);
+    }, 220);
+  });
+
+  map.on("dblclick", function () {
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+  });
+
+  /* ------------------------------------------------------------------
+     Hilfsfunktionen
+     ------------------------------------------------------------------ */
+
+  function num(value) {
+    // Deutsche Schreibweise mit Komma, ohne überflüssiges ",0".
+    return String(Math.round(value * 10) / 10).replace(".", ",");
+  }
+
+  function plural(value, one, many) {
+    return value === 1 ? one : many;
+  }
+
+  function minutesLabel(total) {
+    return num(total) + " " + plural(total, "Minute", "Minuten");
+  }
+
+  function asHours(total) {
+    var whole = Math.round(total);
+    var h = Math.floor(whole / 60);
+    return h + " Std. " + (whole - h * 60) + " Min.";
+  }
+
+  function haversineKm(a, b) {
+    var R = 6371;
+    var toRad = function (d) { return d * Math.PI / 180; };
+    var dLat = toRad(b.lat - a.lat);
+    var dLng = toRad(b.lng - a.lng);
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.sin(dLng / 2) * Math.sin(dLng / 2) *
+            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat));
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function totalAirKm() {
+    var sum = 0;
+    for (var i = 1; i < stops.length; i++) {
+      sum += haversineKm(stops[i - 1], stops[i]);
+    }
+    return sum;
+  }
+
+  function stopName(i) {
+    return stops[i].name.trim() || "Haltestelle " + (i + 1);
+  }
+
+  /* ------------------------------------------------------------------
+     Haltestellen anlegen, benennen, umsortieren, löschen
+     ------------------------------------------------------------------ */
+
+  function addStop(lat, lng) {
+    var stop = {
+      id: nextId++,
+      name: "Haltestelle " + (stops.length + 1),
+      lat: lat,
+      lng: lng,
+      minutes: null,      // Fahrzeit von der vorherigen Haltestelle
+      marker: null,
+      popupInput: null
+    };
+
+    stop.marker = L.marker([lat, lng], {
+      icon: pinIcon(stops.length, stops.length + 1),
+      draggable: true,
+      keyboard: false
+    }).addTo(map);
+    stop.marker.bindPopup(buildNamePopup(stop), { minWidth: 210, autoPan: true });
+
+    stop.marker.on("popupopen", function () {
+      if (stop.popupInput) { stop.popupInput.focus(); stop.popupInput.select(); }
+    });
+
+    stop.marker.on("drag", function (e) {
+      var pos = e.target.getLatLng();
+      stop.lat = pos.lat;
+      stop.lng = pos.lng;
+      drawRoute();
+    });
+
+    stop.marker.on("dragend", function () {
+      renderList();          // Koordinaten und Luftlinien neu ausgeben
+      renderSummary();
+    });
+
+    stops.push(stop);
+    renderAll();
+
+    // Namensfeld direkt am Marker öffnen – die Karte bleibt dabei im Blick.
+    stop.marker.openPopup();
+  }
+
+  function buildNamePopup(stop) {
+    var box = L.DomUtil.create("div", "pop");
+
+    var label = L.DomUtil.create("label", "pop-label", box);
+    label.textContent = "Name der Haltestelle";
+
+    var input = L.DomUtil.create("input", "pop-name", box);
+    input.type = "text";
+    input.value = stop.name;
+    input.placeholder = "z. B. Bhf Pirschheide";
+    label.appendChild(input);
+
+    var hint = L.DomUtil.create("p", "pop-hint", box);
+    hint.textContent = "Enter zum Übernehmen · Marker lässt sich verschieben";
+
+    input.addEventListener("input", function () {
+      setName(stop, input.value, input);
+    });
+
+    // Tastatur- und Klickereignisse dürfen nicht an die Karte durchfallen
+    // (sonst zoomt/pant Leaflet beim Tippen).
+    L.DomEvent.disableClickPropagation(box);
+    L.DomEvent.disableScrollPropagation(box);
+    L.DomEvent.on(input, "keydown", function (e) {
+      L.DomEvent.stopPropagation(e);
+      if (e.key === "Enter") { stop.marker.closePopup(); }
+    });
+
+    stop.popupInput = input;
+    return box;
+  }
+
+  // Hält Popup-Feld, Listenfeld, Marker-Tooltip und Zusammenfassung im Gleichklang.
+  function setName(stop, value, source) {
+    stop.name = value;
+
+    if (stop.popupInput && stop.popupInput !== source) {
+      stop.popupInput.value = value;
+    }
+
+    var listInput = list.querySelector('input.name[data-id="' + stop.id + '"]');
+    if (listInput && listInput !== source) { listInput.value = value; }
+
+    var i = stops.indexOf(stop);
+    if (i > -1 && stop.marker.getTooltip()) {
+      stop.marker.setTooltipContent((i + 1) + ". " + (stop.name.trim() || "ohne Namen"));
+    }
+
+    renderLegLabels();
+    renderSummary();
+  }
+
+  function removeStop(index) {
+    map.removeLayer(stops[index].marker);
+    stops.splice(index, 1);
+    renderAll();
+  }
+
+  function moveStop(index, delta) {
+    var target = index + delta;
+    if (target < 0 || target >= stops.length) { return; }
+    stops.splice(target, 0, stops.splice(index, 1)[0]);
+    renderAll();
+  }
+
+  function clearAll() {
+    stops.forEach(function (stop) { map.removeLayer(stop.marker); });
+    stops = [];
+    renderAll();
+  }
+
+  /* ------------------------------------------------------------------
+     Karte zeichnen
+     ------------------------------------------------------------------ */
+
+  function drawRoute() {
+    routeLine.setLatLngs(stops.map(function (s) { return [s.lat, s.lng]; }));
+  }
+
+  // Eigenes Icon statt der Leaflet-Standardgrafik: die Nummer steht direkt
+  // im Marker und es werden keine zusätzlichen Bilddateien nachgeladen.
+  function pinIcon(position, total) {
+    var role = position === 0
+      ? " is-start"
+      : (position === total - 1 && total > 1 ? " is-end" : "");
+
+    return L.divIcon({
+      className: "",
+      html: '<div class="stop-pin' + role + '">' + (position + 1) + "</div>",
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+      popupAnchor: [0, -14],
+      tooltipAnchor: [0, -14]
+    });
+  }
+
+  function renderMarkers() {
+    stops.forEach(function (stop, i) {
+      stop.marker.setIcon(pinIcon(i, stops.length));
+
+      var label = (i + 1) + ". " + (stop.name.trim() || "ohne Namen");
+      if (stop.marker.getTooltip()) {
+        stop.marker.setTooltipContent(label);
+      } else {
+        stop.marker.bindTooltip(label, { direction: "top" });
+      }
+    });
+
+    drawRoute();
+  }
+
+  function fitRoute() {
+    if (stops.length === 0) { return; }
+    if (stops.length === 1) {
+      map.setView([stops[0].lat, stops[0].lng], Math.max(map.getZoom(), 14));
+      return;
+    }
+    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+  }
+
+  /* ------------------------------------------------------------------
+     Liste zeichnen
+     ------------------------------------------------------------------ */
+
+  var list = document.getElementById("list");
+
+  function renderList() {
+    list.textContent = "";
+
+    if (stops.length === 0) {
+      var empty = document.createElement("li");
+      empty.className = "empty";
+      empty.textContent = "Noch keine Haltestellen. Klicke in die Karte, um die erste zu setzen.";
+      list.appendChild(empty);
+      return;
+    }
+
+    stops.forEach(function (stop, i) {
+      if (i > 0) { list.appendChild(buildLeg(stop, i)); }
+      list.appendChild(buildStop(stop, i));
+    });
+  }
+
+  function buildStop(stop, i) {
+    var isStart = i === 0;
+    var isEnd = i === stops.length - 1 && stops.length > 1;
+
+    var li = document.createElement("li");
+    li.className = "stop";
+
+    var badge = document.createElement("span");
+    badge.className = "badge" + (isStart ? " is-start" : (isEnd ? " is-end" : ""));
+    badge.textContent = String(i + 1);
+    li.appendChild(badge);
+
+    var fields = document.createElement("div");
+    fields.className = "fields";
+
+    var name = document.createElement("input");
+    name.className = "name";
+    name.type = "text";
+    name.value = stop.name;
+    name.placeholder = "Name der Haltestelle";
+    name.setAttribute("data-id", String(stop.id));
+    name.setAttribute("aria-label", "Name der " + (i + 1) + ". Haltestelle");
+
+    name.addEventListener("input", function () { setName(stop, name.value, name); });
+    name.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { name.blur(); }
+    });
+
+    fields.appendChild(name);
+
+    var coords = document.createElement("span");
+    coords.className = "coords";
+    coords.textContent = stop.lat.toFixed(5) + ", " + stop.lng.toFixed(5);
+    fields.appendChild(coords);
+
+    li.appendChild(fields);
+
+    if (isStart || isEnd) {
+      var role = document.createElement("span");
+      role.className = "role " + (isStart ? "is-start" : "is-end");
+      role.textContent = isStart ? "Start" : "Ziel";
+      li.appendChild(role);
+    }
+
+    var actions = document.createElement("div");
+    actions.className = "actions";
+
+    actions.appendChild(iconButton("↑", "Nach oben schieben", i === 0, function () {
+      moveStop(i, -1);
+    }));
+
+    actions.appendChild(iconButton("↓", "Nach unten schieben", i === stops.length - 1, function () {
+      moveStop(i, 1);
+    }));
+
+    actions.appendChild(iconButton("◎", "Auf der Karte zeigen", false, function () {
+      map.setView([stop.lat, stop.lng], Math.max(map.getZoom(), 15));
+      stop.marker.openPopup();
+    }));
+
+    var del = iconButton("✕", "Haltestelle löschen", false, function () { removeStop(i); });
+    del.className = "danger";
+    actions.appendChild(del);
+
+    li.appendChild(actions);
+    return li;
+  }
+
+  function iconButton(glyph, title, disabled, onClick) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = glyph;
+    b.title = title;
+    b.setAttribute("aria-label", title);
+    b.disabled = disabled;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function buildLeg(stop, i) {
+    var li = document.createElement("li");
+    li.className = "leg";
+
+    var label = document.createElement("label");
+    label.appendChild(document.createTextNode("Fahrzeit"));
+
+    var input = document.createElement("input");
+    input.className = "minutes" + (stop.minutes === null ? " missing" : "");
+    input.type = "number";
+    input.min = "0";
+    input.step = "1";
+    input.inputMode = "decimal";
+    input.value = stop.minutes === null ? "" : String(stop.minutes);
+    input.placeholder = "–";
+    input.setAttribute("data-leg", String(i));
+    input.setAttribute("aria-label", legLabel(i));
+
+    input.addEventListener("input", function () {
+      var raw = input.value.trim();
+      if (raw === "") {
+        stop.minutes = null;
+      } else {
+        var parsed = parseFloat(raw.replace(",", "."));
+        stop.minutes = (isNaN(parsed) || parsed < 0) ? null : parsed;
+      }
+      input.classList.toggle("missing", stop.minutes === null);
+      renderSummary();
+    });
+
+    label.appendChild(input);
+    label.appendChild(document.createTextNode("Min."));
+    li.appendChild(label);
+
+    var air = document.createElement("span");
+    air.className = "air";
+    air.textContent = "≈ " + num(haversineKm(stops[i - 1], stop)) + " km Luftlinie";
+    li.appendChild(air);
+
+    return li;
+  }
+
+  function legLabel(i) {
+    return "Fahrzeit in Minuten von " + stopName(i - 1) + " nach " + stopName(i);
+  }
+
+  // Nach einer Umbenennung nur die Beschriftungen nachziehen, damit die
+  // Eingabefelder ihren Fokus behalten.
+  function renderLegLabels() {
+    var inputs = list.querySelectorAll("input.minutes");
+    for (var k = 0; k < inputs.length; k++) {
+      var idx = parseInt(inputs[k].getAttribute("data-leg"), 10);
+      if (idx > 0 && idx < stops.length) {
+        inputs[k].setAttribute("aria-label", legLabel(idx));
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     Zusammenfassung
+     ------------------------------------------------------------------ */
+
+  var headlineEl = document.getElementById("headline");
+  var detailsEl = document.getElementById("details");
+  var warnEl = document.getElementById("warn");
+  var countEl = document.getElementById("count");
+  var lineInput = document.getElementById("lineNo");
+  var btnFit = document.getElementById("btnFit");
+  var btnClear = document.getElementById("btnClear");
+  var mapHint = document.getElementById("mapHint");
+
+  function renderSummary() {
+    var n = stops.length;
+
+    countEl.textContent = n === 0
+      ? "Noch keine Haltestellen"
+      : n + " " + plural(n, "Haltestelle", "Haltestellen") + " · " +
+        (n - 1) + " " + plural(n - 1, "Teilstrecke", "Teilstrecken");
+
+    btnFit.disabled = n === 0;
+    btnClear.disabled = n === 0;
+    mapHint.hidden = n > 0;
+
+    if (n === 0) {
+      headlineEl.textContent = "Noch keine Haltestellen gesetzt.";
+      detailsEl.hidden = true;
+      warnEl.hidden = true;
+      return;
+    }
+
+    if (n === 1) {
+      headlineEl.textContent = "Nur eine Haltestelle (" + stopName(0) +
+        ") – setze mindestens eine weitere, damit eine Fahrzeit entsteht.";
+      detailsEl.hidden = true;
+      warnEl.hidden = true;
+      return;
+    }
+
+    var legs = n - 1;
+    var total = 0;
+    var missing = 0;
+    var longest = null;
+
+    for (var i = 1; i < n; i++) {
+      var m = stops[i].minutes;
+      if (m === null) {
+        missing++;
+      } else {
+        total += m;
+        if (longest === null || m > longest.minutes) {
+          longest = { minutes: m, from: stopName(i - 1), to: stopName(i) };
+        }
+      }
+    }
+
+    // Kernsatz mit Kontext statt nackter Zahl.
+    headlineEl.textContent = stopName(0) + " → " + stopName(n - 1) + ": " +
+      minutesLabel(total) + " über " + n + " " + plural(n, "Haltestelle", "Haltestellen");
+
+    var parts = [];
+    var line = lineInput.value.trim();
+    if (line) { parts.push("Linie " + line); }
+    parts.push(legs + " " + plural(legs, "Teilstrecke", "Teilstrecken"));
+    if (total >= 60) { parts.push("entspricht " + asHours(total)); }
+    if (legs - missing > 0) {
+      parts.push("Ø " + num(total / (legs - missing)) + " Min. je Teilstrecke");
+    }
+    parts.push("≈ " + num(totalAirKm()) + " km Luftlinie");
+    if (longest) {
+      parts.push("längste Teilstrecke: " + longest.from + " → " + longest.to +
+                 " (" + num(longest.minutes) + " Min.)");
+    }
+
+    detailsEl.textContent = parts.join("  ·  ");
+    detailsEl.hidden = false;
+
+    if (missing > 0) {
+      warnEl.textContent = "⚠ " + missing + " von " + legs + " " +
+        plural(legs, "Teilstrecke", "Teilstrecken") + " " +
+        plural(missing, "hat", "haben") +
+        " noch keine Fahrzeit – die Summe ist damit unvollständig.";
+      warnEl.hidden = false;
+    } else {
+      warnEl.hidden = true;
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     Verdrahtung
+     ------------------------------------------------------------------ */
+
+  function renderAll() {
+    renderMarkers();
+    renderList();
+    renderSummary();
+  }
+
+  lineInput.addEventListener("input", renderSummary);
+  btnFit.addEventListener("click", fitRoute);
+
+  btnClear.addEventListener("click", function () {
+    if (stops.length === 0) { return; }
+    if (window.confirm("Wirklich alle " + stops.length + " Haltestellen löschen?")) {
+      clearAll();
+    }
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
