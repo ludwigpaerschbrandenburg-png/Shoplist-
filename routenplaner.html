@@ -30,7 +30,8 @@
     --warn-line: #ddd0ab;
     --r: 3px;
 
-    --grid: 26px minmax(120px, 1fr) 116px 62px 118px;
+    /* # | Haltestelle | Koordinaten | Aufenthalt | Rolle | Aktion */
+    --grid: 24px minmax(110px, 1fr) 108px 94px 46px 112px;
   }
 
   * { box-sizing: border-box; }
@@ -51,7 +52,7 @@
   }
 
   .wrap {
-    max-width: 1000px;
+    max-width: 1040px;
     margin: 0 auto;
     padding: 14px 14px 40px;
   }
@@ -61,11 +62,10 @@
   header.app {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 14px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--line);
-    margin-bottom: 12px;
   }
 
   header.app h1 {
@@ -117,6 +117,70 @@
   .ctrl input.factor { width: 66px; text-align: right; }
   .ctrl .hint { font-size: 10.5px; color: var(--muted-2); }
 
+  /* ---------- Umschalter ---------- */
+
+  .switchbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+    padding: 9px 0;
+  }
+
+  .switch {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .switch > .cap {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    overflow: hidden;
+    background: var(--panel);
+  }
+
+  .seg button {
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--panel);
+    padding: 4px 13px;
+    font: inherit;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .seg button:last-child { border-right: 0; }
+  .seg button:hover:not([aria-pressed="true"]) { background: var(--accent-soft); }
+
+  /* Auch im Hover-Zustand gewinnen - die allgemeine button:hover-Regel
+     hat sonst dieselbe Spezifität und steht später im Stylesheet. */
+  .seg button[aria-pressed="true"],
+  .seg button[aria-pressed="true"]:hover {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    border-color: var(--accent);
+  }
+
+  .seg .sub {
+    display: inline-block;
+    margin-left: 6px;
+    font-weight: 400;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* ---------- Karte ---------- */
 
   .map-card {
@@ -128,8 +192,8 @@
   }
 
   #map {
-    height: 46vh;
-    min-height: 300px;
+    height: 42vh;
+    min-height: 280px;
     width: 100%;
     background: #dfe3e7;
   }
@@ -169,7 +233,6 @@
   .stop-pin.is-start { background: var(--pin-start); }
   .stop-pin.is-end   { background: var(--pin-end); }
 
-  /* Namensfeld im Marker-Popup */
   .leaflet-popup-content-wrapper { border-radius: var(--r); }
   .leaflet-popup-content { margin: 9px 11px; }
 
@@ -208,7 +271,7 @@
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
-    padding: 8px 0;
+    padding: 0 0 8px;
   }
 
   .status {
@@ -227,7 +290,6 @@
     background: var(--muted-2);
   }
 
-  .status .dot:first-child { margin-left: 0; }
   .status .dot.road    { background: var(--accent); }
   .status .dot.pending { background: #b99a4e; }
   .status .dot.air     { background: var(--muted-2); }
@@ -246,7 +308,7 @@
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   button:disabled { opacity: 0.35; cursor: default; }
 
-  /* ---------- Haltestellentabelle ---------- */
+  /* ---------- Tabellen allgemein ---------- */
 
   .table {
     border: 1px solid var(--line);
@@ -263,6 +325,9 @@
     padding: 5px 9px;
     background: var(--panel-alt);
     border-bottom: 1px solid var(--line);
+  }
+
+  .thead span, th {
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.6px;
@@ -307,7 +372,7 @@
   .badge.is-start { background: var(--pin-start); }
   .badge.is-end   { background: var(--pin-end); }
 
-  .stop input.name {
+  input.name {
     width: 100%;
     border: 1px solid transparent;
     border-radius: var(--r);
@@ -319,10 +384,10 @@
     min-width: 0;
   }
 
-  .stop input.name:hover { border-color: var(--line-soft); }
-  .stop input.name:focus { outline: none; border-color: var(--accent); background: #fff; }
+  input.name:hover { border-color: var(--line-soft); }
+  input.name:focus { outline: none; border-color: var(--accent); background: #fff; }
 
-  .stop .coords {
+  .coords {
     font-size: 11px;
     color: var(--muted);
   }
@@ -354,14 +419,38 @@
     color: var(--muted);
   }
 
-  /* ---------- Teilstrecke ---------- */
+  /* Aufenthaltsfeld */
+  .dwell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--muted-2);
+  }
+
+  input.secs {
+    width: 46px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 2px 4px;
+    font: inherit;
+    color: var(--text);
+    text-align: right;
+    background: var(--panel);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input.secs:focus { outline: none; border-color: var(--accent); }
+  .dwell.idle input.secs { color: var(--muted-2); background: var(--panel-alt); }
+
+  /* ---------- Teilstrecke (Kartenansicht) ---------- */
 
   .leg {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    padding: 4px 9px 4px 35px;
+    padding: 4px 9px 4px 33px;
     background: var(--panel-alt);
     border-bottom: 1px solid var(--line-soft);
     position: relative;
@@ -370,7 +459,7 @@
   .leg::before {
     content: "";
     position: absolute;
-    left: 19px;
+    left: 18px;
     top: 0;
     bottom: 0;
     width: 1px;
@@ -385,7 +474,7 @@
     color: var(--muted);
   }
 
-  .leg input.minutes {
+  input.minutes {
     width: 48px;
     border: 1px solid var(--line);
     border-radius: var(--r);
@@ -398,10 +487,10 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .leg input.minutes:focus { outline: none; border-color: var(--accent); }
-  .leg input.minutes.missing { border-color: var(--warn-line); background: var(--warn-bg); }
+  input.minutes:focus { outline: none; border-color: var(--accent); }
+  input.minutes.missing { border-color: var(--warn-line); background: var(--warn-bg); }
 
-  .leg .tag {
+  .tag {
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.4px;
@@ -414,12 +503,12 @@
     white-space: nowrap;
   }
 
-  .leg .tag.manual { border-color: #b9c3cd; color: var(--accent); }
+  .tag.manual { border-color: #b9c3cd; color: var(--accent); }
 
-  .leg .info { font-size: 11px; color: var(--muted-2); }
-  .leg .info.fail { color: var(--warn); }
+  .info { font-size: 11px; color: var(--muted-2); }
+  .info.fail { color: var(--warn); }
 
-  .leg button.reset {
+  button.reset {
     width: 22px;
     height: 20px;
     padding: 0;
@@ -428,13 +517,73 @@
     color: var(--muted);
   }
 
-  .leg button.reset[hidden] { display: none; }
+  button.reset[hidden] { display: none; }
 
   .empty {
     padding: 22px 12px;
     text-align: center;
     color: var(--muted);
     font-size: 12px;
+  }
+
+  /* ---------- Listenansicht ---------- */
+
+  table.sheet {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  table.sheet th {
+    text-align: left;
+    padding: 5px 9px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  table.sheet th.r, table.sheet td.r { text-align: right; }
+
+  table.sheet td {
+    padding: 3px 9px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: middle;
+  }
+
+  table.sheet tbody tr:last-child td { border-bottom: 0; }
+  table.sheet tbody tr:hover { background: #fafbfc; }
+
+  table.sheet td.nr { width: 30px; }
+  table.sheet td.name { min-width: 150px; }
+
+  table.sheet td.run {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  table.sheet .cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: flex-end;
+    font-size: 11px;
+    color: var(--muted-2);
+  }
+
+  table.sheet .legnote {
+    font-size: 10.5px;
+    color: var(--muted-2);
+    white-space: nowrap;
+  }
+
+  table.sheet .legnote.fail { color: var(--warn); }
+
+  table.sheet tfoot td {
+    padding: 6px 9px;
+    background: var(--panel-alt);
+    border-top: 1px solid var(--line);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
   /* ---------- Zusammenfassung ---------- */
@@ -465,36 +614,35 @@
     line-height: 1.35;
   }
 
-  .metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0;
+  table.totals {
+    width: 100%;
+    border-collapse: collapse;
     margin-top: 10px;
     border: 1px solid var(--line-soft);
-    border-radius: var(--r);
   }
 
-  .metric {
-    flex: 1 1 130px;
-    padding: 6px 10px;
-    border-right: 1px solid var(--line-soft);
+  table.totals th, table.totals td {
+    padding: 5px 9px;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 
-  .metric:last-child { border-right: 0; }
+  table.totals th:first-child, table.totals td:first-child {
+    text-align: left;
+    font-variant-numeric: normal;
+  }
 
-  .metric dt {
+  table.totals tbody td { font-size: 12.5px; }
+  table.totals tbody td:first-child { color: var(--text); font-weight: 600; }
+  table.totals tr.cycle td { border-bottom: 0; background: var(--panel-alt); font-weight: 700; }
+  table.totals tr.active td:first-child::after {
+    content: " ·  angezeigt";
+    font-weight: 400;
     font-size: 10px;
-    font-weight: 600;
     letter-spacing: 0.5px;
     text-transform: uppercase;
     color: var(--muted-2);
-  }
-
-  .metric dd {
-    margin: 1px 0 0;
-    font-size: 13.5px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
   }
 
   .summary .details {
@@ -519,7 +667,7 @@
     color: #6f3a30;
     border-radius: var(--r);
     padding: 10px 12px;
-    margin-bottom: 12px;
+    margin: 12px 0;
     font-size: 12px;
   }
 
@@ -529,11 +677,49 @@
     color: var(--muted-2);
   }
 
-  @media (max-width: 700px) {
-    :root { --grid: 24px minmax(90px, 1fr) 92px; }
-    .thead .c-role, .thead .c-act, .stop .role { display: none; }
-    .stop .actions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 32px; }
+  [hidden] { display: none !important; }
+
+  .printhead { display: none; }
+
+  @media (max-width: 720px) {
+    :root { --grid: 22px minmax(90px, 1fr) 86px; }
+    .thead .c-dwell, .thead .c-role, .thead .c-act,
+    .stop .role { display: none; }
+    .stop .dwell, .stop .actions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 30px; }
     .controls { margin-left: 0; width: 100%; }
+    .wrap { padding: 10px 8px 30px; }
+  }
+
+  /* ---------- Druck: dichte, ruhige Tabelle ohne Bedienelemente ---------- */
+
+  @media print {
+    body { background: #fff; font-size: 10.5px; }
+    header.app .sub { display: none; }
+    .printhead {
+      display: block;
+      margin: 2px 0 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .printhead .meta {
+      font-weight: 400;
+      color: #444;
+    }
+    .wrap { max-width: none; padding: 0; }
+    .map-card, .switchbar, .toolbar, .foot, .controls,
+    .stop .actions, button.reset, .summary .warn { display: none !important; }
+    .table, .summary { border-color: #999; break-inside: avoid; }
+    .thead, table.sheet th, .summary .head, table.sheet tfoot td { background: #eee !important; }
+    input {
+      border: 0 !important;
+      background: transparent !important;
+      padding: 0 !important;
+      color: #000 !important;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    input.name { font-weight: 600; }
+    .leg { background: #f7f7f7 !important; }
   }
 </style>
 </head>
@@ -544,7 +730,8 @@
   <header class="app">
     <div>
       <h1>Routenplaner Buslinie</h1>
-      <p class="sub">Klick in die Karte setzt eine Haltestelle &middot; Fahrzeiten werden über OSRM geschätzt und bleiben überschreibbar</p>
+      <p class="sub">Klick in die Karte setzt eine Haltestelle &middot; Fahrzeiten schätzt OSRM je Richtung getrennt</p>
+      <p class="printhead" id="printHead"></p>
     </div>
     <div class="controls">
       <label class="ctrl">
@@ -556,6 +743,11 @@
         <input id="busFactor" class="factor num" type="number" min="0.5" max="4" step="0.05" value="1.4">
         <span class="hint">Pkw-Zeit × Faktor</span>
       </label>
+      <label class="ctrl">
+        <span class="cap">Aufenthalt neu</span>
+        <input id="defaultDwell" class="factor num" type="number" min="0" max="600" step="5" value="20">
+        <span class="hint">Sekunden je neue Haltestelle</span>
+      </label>
     </div>
   </header>
 
@@ -565,34 +757,84 @@
     Ohne Karte funktionieren Liste und Fahrzeiten nicht.
   </div>
 
-  <div class="map-card">
+  <div class="switchbar">
+    <div class="switch">
+      <span class="cap">Richtung</span>
+      <div class="seg" id="segDir" role="group" aria-label="Fahrtrichtung">
+        <button type="button" data-dir="out" aria-pressed="true">Hinfahrt<span class="sub" id="subOut"></span></button>
+        <button type="button" data-dir="back" aria-pressed="false">Rückfahrt<span class="sub" id="subBack"></span></button>
+      </div>
+    </div>
+    <div class="switch">
+      <span class="cap">Ansicht</span>
+      <div class="seg" id="segView" role="group" aria-label="Ansicht">
+        <button type="button" data-view="map" aria-pressed="true">Karte</button>
+        <button type="button" data-view="list" aria-pressed="false">Liste</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-card" id="mapCard">
     <div id="map"></div>
     <div id="mapHint" class="map-hint">Klick in die Karte setzt die erste Haltestelle.</div>
   </div>
 
   <div class="toolbar">
     <span class="status" id="status">Noch keine Haltestellen</span>
+    <button id="btnMirror" type="button" hidden>Aus Hinfahrt spiegeln</button>
     <button id="btnFit" type="button" disabled>Route einpassen</button>
     <button id="btnRetry" type="button" disabled>Routing wiederholen</button>
+    <button id="btnPrint" type="button" hidden>Drucken</button>
     <button id="btnClear" type="button" disabled>Alle löschen</button>
   </div>
 
-  <div class="table">
+  <!-- Kartenansicht: Haltestellen mit Teilstrecken dazwischen -->
+  <div class="table" id="viewMap">
     <div class="thead">
       <span>#</span>
       <span>Haltestelle</span>
       <span>Koordinaten</span>
+      <span class="c-dwell">Aufenthalt</span>
       <span class="c-role">Rolle</span>
       <span class="c-act r">Aktion</span>
     </div>
     <ol class="stops" id="list"></ol>
   </div>
 
+  <!-- Listenansicht: dichte Tabelle zum Nachprüfen und Ausdrucken -->
+  <div class="table" id="viewList" hidden>
+    <table class="sheet">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Haltestelle</th>
+          <th>Koordinaten</th>
+          <th class="r">Fahrzeit zur nächsten</th>
+          <th class="r">Aufenthalt</th>
+          <th class="r">Ab Start</th>
+        </tr>
+      </thead>
+      <tbody id="sheetBody"></tbody>
+      <tfoot id="sheetFoot"></tfoot>
+    </table>
+  </div>
+
   <section class="summary" aria-live="polite">
     <div class="head">Zusammenfassung</div>
     <div class="body">
       <div class="headline" id="headline">Noch keine Haltestellen gesetzt.</div>
-      <dl class="metrics" id="metrics" hidden></dl>
+      <table class="totals" id="totals" hidden>
+        <thead>
+          <tr>
+            <th>Richtung</th>
+            <th>Haltestellen</th>
+            <th>Fahrzeit</th>
+            <th>Aufenthalt</th>
+            <th>Gesamt</th>
+          </tr>
+        </thead>
+        <tbody id="totalsBody"></tbody>
+      </table>
       <div class="details" id="details" hidden></div>
       <div class="warn" id="warn" hidden></div>
     </div>
@@ -600,7 +842,9 @@
 
   <p class="foot">
     Routing: OSRM-Demoserver, Profil „driving" als Näherung – es gibt kein
-    öffentliches Bus-Profil. Fahrzeiten sind Schätzwerte, kein Fahrplan.
+    öffentliches Bus-Profil. Hin- und Rückweg werden getrennt abgefragt.
+    Fahrzeiten sind Schätzwerte, kein Fahrplan. Die Umlaufzeit enthält noch
+    keine Wendezeit.
   </p>
 
 </div>
@@ -624,10 +868,10 @@
     // ein öffentliches Bus-Profil gibt es dort nicht.
     osrmBase: "https://router.project-osrm.org/route/v1/driving/",
 
-    // Startwert des Bus-Faktors; im Kopfbereich änderbar.
-    busFactor: 1.4,
-
+    busFactor: 1.4,                 // Startwert, im Kopfbereich änderbar
+    dwellSeconds: 20,               // Aufenthalt je neuer Haltestelle
     requestTimeoutMs: 8000,
+    maxParallelRequests: 4,         // Demoserver nicht überrennen
 
     // OSRM setzt Koordinaten auf die nächste Straße. Liegt eine
     // Haltestelle weiter als das entfernt, ist der Treffer unbrauchbar.
@@ -642,17 +886,37 @@
   /* ==================================================================
      Zustand
 
-     Jede Haltestelle trägt in `minutes` die Fahrzeit von der VORHERIGEN
-     Haltestelle. `manual` merkt sich, ob dieser Wert von Hand kommt –
-     dann überschreibt ihn die OSRM-Schätzung nicht mehr. `leg` zeigt auf
-     den Routing-Eintrag der Teilstrecke, die zu dieser Haltestelle führt.
-     ================================================================== */
-  var stops = [];
-  var nextId = 1;
+     Ein "Ort" ist die Haltestelle als solche: Name, Koordinaten, Marker.
+     Er gehört beiden Richtungen gemeinsam, deshalb wirkt Umbenennen
+     überall.
 
-  // Routing-Ergebnisse, gemerkt je Koordinatenpaar: Umsortieren oder
-  // Löschen fragt bereits bekannte Teilstrecken nicht erneut an.
+     Ein "Eintrag" ist der Halt dieses Ortes innerhalb einer Richtung.
+     Er trägt alles, was sich zwischen Hin- und Rückweg unterscheidet:
+     Fahrzeit von der vorherigen Haltestelle (minutes), ob dieser Wert
+     von Hand kommt (manual), die Aufenthaltszeit (dwell) und die
+     Routing-Antwort der Teilstrecke, die zu ihm führt (leg).
+     ================================================================== */
+
+  var places = [];
+  var nextPlaceId = 1;
+
+  var dirs = {
+    out:  { key: "out",  label: "Hinfahrt",  entries: [] },
+    back: { key: "back", label: "Rückfahrt", entries: [] }
+  };
+
+  var DIR_KEYS = ["out", "back"];
+
+  var activeDir = "out";
+  var activeView = "map";
+
+  // Routing-Ergebnisse je gerichtetem Koordinatenpaar. A→B und B→A sind
+  // eigene Schlüssel – wegen Einbahnstraßen können sie sich unterscheiden.
   var routeCache = {};
+
+  function dir() { return dirs[activeDir]; }
+  function entries() { return dir().entries; }
+  function otherKey(key) { return key === "out" ? "back" : "out"; }
 
   /* ==================================================================
      Karte
@@ -675,7 +939,7 @@
     var latlng = e.latlng;
     clickTimer = setTimeout(function () {
       clickTimer = null;
-      addStop(latlng.lat, latlng.lng);
+      addPlace(latlng.lat, latlng.lng);
     }, 220);
   });
 
@@ -684,7 +948,7 @@
   });
 
   /* ==================================================================
-     Hilfsfunktionen
+     Formatierung
      ================================================================== */
 
   function num(value, digits) {
@@ -692,18 +956,24 @@
     return String(Math.round(value * f) / f).replace(".", ",");
   }
 
-  function plural(value, one, many) {
-    return value === 1 ? one : many;
+  function plural(value, one, many) { return value === 1 ? one : many; }
+
+  // Sekunden als m:ss bzw. h:mm:ss – die Form, in der Umlaufzeiten
+  // üblicherweise gelesen werden.
+  function clock(seconds) {
+    var total = Math.round(seconds);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total - h * 3600) / 60);
+    var s = total - h * 3600 - m * 60;
+    var pad = function (v) { return (v < 10 ? "0" : "") + v; };
+    return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
   }
 
-  function minutesLabel(total) {
-    return num(total) + " " + plural(total, "Minute", "Minuten");
-  }
+  function wholeMinutes(seconds) { return Math.round(seconds / 60); }
 
-  function asHours(total) {
-    var whole = Math.round(total);
-    var h = Math.floor(whole / 60);
-    return h + " Std. " + (whole - h * 60) + " Min.";
+  function minutesLabel(seconds) {
+    var m = wholeMinutes(seconds);
+    return m + " " + plural(m, "Minute", "Minuten");
   }
 
   function haversineKm(a, b) {
@@ -717,25 +987,39 @@
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
-  function stopName(i) {
-    return stops[i].name.trim() || "Haltestelle " + (i + 1);
+  function nameOf(entry) {
+    return entry.place.name.trim() || entry.place.fallback;
   }
 
   function busFactor() {
-    var raw = String(factorInput.value).trim().replace(",", ".");
-    var value = parseFloat(raw);
+    var value = parseFloat(String(factorInput.value).trim().replace(",", "."));
     return (isNaN(value) || value <= 0) ? CONFIG.busFactor : value;
+  }
+
+  function defaultDwell() {
+    var value = parseInt(String(dwellInput.value).trim(), 10);
+    return (isNaN(value) || value < 0) ? CONFIG.dwellSeconds : value;
   }
 
   /* ==================================================================
      OSRM-Routing
 
-     Ein Cache-Eintrag: { status: "pending" | "ok" | "fail",
-                          seconds, km, coords, reason }
+     Cache-Eintrag: { status: "pending" | "ok" | "fail",
+                      seconds, km, coords, reason }
      ================================================================== */
 
+  var queue = [];
+  var inFlight = 0;
+
+  function pump() {
+    while (inFlight < CONFIG.maxParallelRequests && queue.length) {
+      inFlight++;
+      queue.shift()();
+    }
+  }
+
   function legKey(a, b) {
-    return a.lat.toFixed(5) + "," + a.lng.toFixed(5) + ";" +
+    return a.lat.toFixed(5) + "," + a.lng.toFixed(5) + ">" +
            b.lat.toFixed(5) + "," + b.lng.toFixed(5);
   }
 
@@ -756,45 +1040,54 @@
       return;
     }
 
-    var url = CONFIG.osrmBase +
-      a.lng.toFixed(6) + "," + a.lat.toFixed(6) + ";" +
-      b.lng.toFixed(6) + "," + b.lat.toFixed(6) +
-      "?overview=full&geometries=geojson";
+    queue.push(function () {
+      var url = CONFIG.osrmBase +
+        a.lng.toFixed(6) + "," + a.lat.toFixed(6) + ";" +
+        b.lng.toFixed(6) + "," + b.lat.toFixed(6) +
+        "?overview=full&geometries=geojson";
 
-    var controller = (typeof AbortController === "function") ? new AbortController() : null;
-    var timer = window.setTimeout(function () {
-      if (controller) { controller.abort(); }
-    }, CONFIG.requestTimeoutMs);
+      var controller = (typeof AbortController === "function") ? new AbortController() : null;
+      var timer = window.setTimeout(function () {
+        if (controller) { controller.abort(); }
+      }, CONFIG.requestTimeoutMs);
 
-    window.fetch(url, controller ? { signal: controller.signal } : undefined)
-      .then(function (response) {
-        if (!response.ok) { throw new Error("HTTP " + response.status); }
-        return response.json();
-      })
-      .then(function (data) {
+      var done = function () {
         window.clearTimeout(timer);
-        var route = usableRoute(data);
-        if (route) {
-          entry.status = "ok";
-          entry.seconds = route.duration;
-          entry.km = route.distance / 1000;
-          entry.coords = route.geometry.coordinates.map(function (c) {
-            return [c[1], c[0]];          // GeoJSON liefert lon,lat
-          });
-        } else {
+        inFlight--;
+        pump();
+        onRoutingChanged();
+      };
+
+      window.fetch(url, controller ? { signal: controller.signal } : undefined)
+        .then(function (response) {
+          if (!response.ok) { throw new Error("HTTP " + response.status); }
+          return response.json();
+        })
+        .then(function (data) {
+          var route = usableRoute(data);
+          if (route) {
+            entry.status = "ok";
+            entry.seconds = route.duration;
+            entry.km = route.distance / 1000;
+            entry.coords = route.geometry.coordinates.map(function (c) {
+              return [c[1], c[0]];          // GeoJSON liefert lon,lat
+            });
+          } else {
+            entry.status = "fail";
+            entry.reason = "keine Route";
+          }
+          done();
+        })
+        .catch(function (err) {
           entry.status = "fail";
-          entry.reason = "keine Route";
-        }
-        onRoutingChanged();
-      })
-      .catch(function (err) {
-        window.clearTimeout(timer);
-        entry.status = "fail";
-        entry.reason = (err && err.name === "AbortError")
-          ? "Zeitüberschreitung"
-          : "Dienst nicht erreichbar";
-        onRoutingChanged();
-      });
+          entry.reason = (err && err.name === "AbortError")
+            ? "Zeitüberschreitung"
+            : "Dienst nicht erreichbar";
+          done();
+        });
+    });
+
+    pump();
   }
 
   // OSRM antwortet auch dann mit "Ok", wenn es die Punkte über hunderte
@@ -819,13 +1112,17 @@
     return route;
   }
 
-  // Ordnet jeder Haltestelle die Teilstrecke zu, die zu ihr führt, und
-  // stößt fehlende Anfragen an.
+  // Ordnet in BEIDEN Richtungen jedem Eintrag die Teilstrecke zu, die zu
+  // ihm führt. Beide Richtungen werden gerechnet, weil die
+  // Zusammenfassung die Umlaufzeit ausweist.
   function syncRoutes() {
-    if (stops.length) { stops[0].leg = null; }
-    for (var i = 1; i < stops.length; i++) {
-      stops[i].leg = routeFor(stops[i - 1], stops[i]);
-    }
+    DIR_KEYS.forEach(function (key) {
+      var list = dirs[key].entries;
+      if (list.length) { list[0].leg = null; }
+      for (var i = 1; i < list.length; i++) {
+        list[i].leg = routeFor(list[i - 1].place, list[i].place);
+      }
+    });
     applyEstimates();
     drawRoutes();
   }
@@ -837,84 +1134,140 @@
 
   // Trägt Schätzungen nur dort ein, wo noch nichts von Hand steht.
   function applyEstimates() {
-    for (var i = 1; i < stops.length; i++) {
-      if (!stops[i].manual) {
-        stops[i].minutes = estimateMinutes(stops[i].leg);
+    DIR_KEYS.forEach(function (key) {
+      var list = dirs[key].entries;
+      for (var i = 1; i < list.length; i++) {
+        if (!list[i].manual) { list[i].minutes = estimateMinutes(list[i].leg); }
       }
-    }
+    });
   }
 
-  // Läuft, sobald eine OSRM-Antwort eintrifft.
   function onRoutingChanged() {
     applyEstimates();
     drawRoutes();
-    refreshLegs();
+    refreshRows();
     renderSummary();
   }
 
   function retryFailedRoutes() {
-    for (var i = 1; i < stops.length; i++) {
-      var leg = stops[i].leg;
-      if (leg && leg.status === "fail") {
-        leg.status = "pending";
-        leg.reason = "";
-        requestRoute(leg, stops[i - 1], stops[i]);
+    DIR_KEYS.forEach(function (key) {
+      var list = dirs[key].entries;
+      for (var i = 1; i < list.length; i++) {
+        var leg = list[i].leg;
+        if (leg && leg.status === "fail") {
+          leg.status = "pending";
+          leg.reason = "";
+          requestRoute(leg, list[i - 1].place, list[i].place);
+        }
       }
-    }
-    refreshLegs();
+    });
+    refreshRows();
     renderSummary();
   }
 
   /* ==================================================================
-     Haltestellen anlegen, benennen, umsortieren, löschen
+     Orte und Richtungseinträge
      ================================================================== */
 
-  function addStop(lat, lng) {
-    var stop = {
-      id: nextId++,
-      name: "Haltestelle " + (stops.length + 1),
-      lat: lat,
-      lng: lng,
+  function makeEntry(place) {
+    return {
+      place: place,
       minutes: null,
       manual: false,
+      dwell: defaultDwell(),
       leg: null,
+      ui: {}
+    };
+  }
+
+  function addPlace(lat, lng) {
+    var place = {
+      id: nextPlaceId++,
+      name: "Haltestelle " + (places.length + 1),
+      fallback: "Haltestelle " + (places.length + 1),
+      lat: lat,
+      lng: lng,
       marker: null,
-      popupInput: null,
-      ui: null
+      popupInput: null
     };
 
-    stop.marker = L.marker([lat, lng], {
-      icon: pinIcon(stops.length, stops.length + 1),
+    place.marker = L.marker([lat, lng], {
+      icon: pinIcon(0, 1),
       draggable: true,
       keyboard: false
     }).addTo(map);
 
-    stop.marker.bindPopup(buildNamePopup(stop), { minWidth: 190, autoPan: true });
+    place.marker.bindPopup(buildNamePopup(place), { minWidth: 190, autoPan: true });
 
-    stop.marker.on("popupopen", function () {
-      if (stop.popupInput) { stop.popupInput.focus(); stop.popupInput.select(); }
+    place.marker.on("popupopen", function () {
+      if (place.popupInput) { place.popupInput.focus(); place.popupInput.select(); }
     });
 
-    stop.marker.on("drag", function (e) {
+    place.marker.on("drag", function (e) {
       var pos = e.target.getLatLng();
-      stop.lat = pos.lat;
-      stop.lng = pos.lng;
+      place.lat = pos.lat;
+      place.lng = pos.lng;
     });
 
-    stop.marker.on("dragend", function () {
-      syncRoutes();          // verschobene Haltestelle braucht neue Teilstrecken
-      renderList();
+    place.marker.on("dragend", function () {
+      syncRoutes();          // verschobener Ort braucht neue Teilstrecken
+      renderBody();
       renderSummary();
     });
 
-    stops.push(stop);
-    renderAll();
+    places.push(place);
 
-    // Namensfeld direkt am Marker öffnen – die Karte bleibt dabei im Blick.
-    stop.marker.openPopup();
+    // Die aktive Richtung bekommt den Halt hinten angehängt, die
+    // Gegenrichtung spiegelbildlich vorne.
+    dirs[activeDir].entries.push(makeEntry(place));
+    dirs[otherKey(activeDir)].entries.unshift(makeEntry(place));
+
+    renderAll();
+    place.marker.openPopup();
   }
 
-  function buildNamePopup(stop) {
+  // Ein Ort ist dieselbe Haltestelle in beiden Richtungen, deshalb
+  // verschwindet er beim Löschen aus Hin- und Rückweg.
+  function removePlace(place) {
+    map.removeLayer(place.marker);
+    places = places.filter(function (p) { return p !== place; });
+    DIR_KEYS.forEach(function (key) {
+      dirs[key].entries = dirs[key].entries.filter(function (e) { return e.place !== place; });
+    });
+    renderAll();
+  }
+
+  function moveEntry(index, delta) {
+    var list = entries();
+    var target = index + delta;
+    if (target < 0 || target >= list.length) { return; }
+    list.splice(target, 0, list.splice(index, 1)[0]);
+    renderAll();
+  }
+
+  // Stellt die Rückfahrt wieder als exakte Spiegelung der Hinfahrt her.
+  // Aufenthalte und von Hand gesetzte Fahrzeiten der Rückfahrt bleiben an
+  // ihrem Ort erhalten, nur die Reihenfolge wird neu gesetzt.
+  function mirrorFromOut() {
+    var byPlace = {};
+    dirs.back.entries.forEach(function (e) { byPlace[e.place.id] = e; });
+
+    dirs.back.entries = dirs.out.entries.slice().reverse().map(function (e) {
+      return byPlace[e.place.id] || makeEntry(e.place);
+    });
+
+    renderAll();
+  }
+
+  function clearAll() {
+    places.forEach(function (place) { map.removeLayer(place.marker); });
+    places = [];
+    dirs.out.entries = [];
+    dirs.back.entries = [];
+    renderAll();
+  }
+
+  function buildNamePopup(place) {
     var box = L.DomUtil.create("div", "pop");
 
     var label = L.DomUtil.create("label", "pop-label", box);
@@ -922,14 +1275,14 @@
 
     var input = L.DomUtil.create("input", "pop-name", box);
     input.type = "text";
-    input.value = stop.name;
+    input.value = place.name;
     input.placeholder = "z. B. Bhf Pirschheide";
     label.appendChild(input);
 
     var hint = L.DomUtil.create("p", "pop-hint", box);
-    hint.textContent = "Enter zum Übernehmen · Marker ist verschiebbar";
+    hint.textContent = "Gilt für beide Richtungen · Enter übernimmt";
 
-    input.addEventListener("input", function () { setName(stop, input.value, input); });
+    input.addEventListener("input", function () { setName(place, input.value, input); });
 
     // Tastatur- und Klickereignisse dürfen nicht an die Karte durchfallen
     // (sonst zoomt/pant Leaflet beim Tippen).
@@ -937,56 +1290,36 @@
     L.DomEvent.disableScrollPropagation(box);
     L.DomEvent.on(input, "keydown", function (e) {
       L.DomEvent.stopPropagation(e);
-      if (e.key === "Enter") { stop.marker.closePopup(); }
+      if (e.key === "Enter") { place.marker.closePopup(); }
     });
 
-    stop.popupInput = input;
+    place.popupInput = input;
     return box;
   }
 
-  // Hält Popup-Feld, Listenfeld, Marker-Tooltip und Zusammenfassung im Gleichklang.
-  function setName(stop, value, source) {
-    stop.name = value;
+  // Der Name gehört dem Ort, gilt also in beiden Richtungen.
+  function setName(place, value, source) {
+    place.name = value;
 
-    if (stop.popupInput && stop.popupInput !== source) { stop.popupInput.value = value; }
+    if (place.popupInput && place.popupInput !== source) { place.popupInput.value = value; }
 
-    var listInput = list.querySelector('input.name[data-id="' + stop.id + '"]');
-    if (listInput && listInput !== source) { listInput.value = value; }
+    var container = activeView === "map" ? viewMap : viewList;
+    var field = container.querySelector('input.name[data-place="' + place.id + '"]');
+    if (field && field !== source) { field.value = value; }
 
-    var i = stops.indexOf(stop);
-    if (i > -1 && stop.marker.getTooltip()) {
-      stop.marker.setTooltipContent((i + 1) + ". " + (stop.name.trim() || "ohne Namen"));
+    var index = entries().findIndex(function (e) { return e.place === place; });
+    if (index > -1 && place.marker.getTooltip()) {
+      place.marker.setTooltipContent((index + 1) + ". " + (place.name.trim() || "ohne Namen"));
     }
 
-    refreshLegs();
+    refreshRows();
     renderSummary();
-  }
-
-  function removeStop(index) {
-    map.removeLayer(stops[index].marker);
-    stops.splice(index, 1);
-    renderAll();
-  }
-
-  function moveStop(index, delta) {
-    var target = index + delta;
-    if (target < 0 || target >= stops.length) { return; }
-    stops.splice(target, 0, stops.splice(index, 1)[0]);
-    renderAll();
-  }
-
-  function clearAll() {
-    stops.forEach(function (stop) { map.removeLayer(stop.marker); });
-    stops = [];
-    renderAll();
   }
 
   /* ==================================================================
      Karte zeichnen
      ================================================================== */
 
-  // Eigenes Icon statt der Leaflet-Standardgrafik: die Nummer steht direkt
-  // im Marker und es werden keine zusätzlichen Bilddateien nachgeladen.
   function pinIcon(position, total) {
     var role = position === 0
       ? " is-start"
@@ -1002,47 +1335,49 @@
     });
   }
 
-  // Durchgezogen entlang der Straße, wo OSRM eine Route geliefert hat;
-  // gestrichelte Luftlinie, solange oder falls keine vorliegt.
+  // Gezeichnet wird immer die gerade gewählte Richtung: durchgezogen
+  // entlang der Straße, gestrichelte Luftlinie ohne Route.
   function drawRoutes() {
     routeLayer.clearLayers();
+    var list = entries();
 
-    for (var i = 1; i < stops.length; i++) {
-      var leg = stops[i].leg;
+    for (var i = 1; i < list.length; i++) {
+      var leg = list[i].leg;
 
       if (leg && leg.status === "ok" && leg.coords) {
-        L.polyline(leg.coords, {
-          color: "#3c5a78", weight: 3.5, opacity: 0.9
-        }).addTo(routeLayer);
+        L.polyline(leg.coords, { color: "#3c5a78", weight: 3.5, opacity: 0.9 }).addTo(routeLayer);
       } else {
-        L.polyline([[stops[i - 1].lat, stops[i - 1].lng], [stops[i].lat, stops[i].lng]], {
-          color: "#8b929a", weight: 2, opacity: 0.9, dashArray: "5,5"
-        }).addTo(routeLayer);
+        L.polyline([[list[i - 1].place.lat, list[i - 1].place.lng],
+                    [list[i].place.lat, list[i].place.lng]],
+                   { color: "#8b929a", weight: 2, opacity: 0.9, dashArray: "5,5" }).addTo(routeLayer);
       }
     }
   }
 
+  // Nummerierung und Rolle richten sich nach der gewählten Richtung.
   function renderMarkers() {
-    stops.forEach(function (stop, i) {
-      stop.marker.setIcon(pinIcon(i, stops.length));
+    var list = entries();
+    list.forEach(function (entry, i) {
+      entry.place.marker.setIcon(pinIcon(i, list.length));
 
-      var label = (i + 1) + ". " + (stop.name.trim() || "ohne Namen");
-      if (stop.marker.getTooltip()) {
-        stop.marker.setTooltipContent(label);
+      var label = (i + 1) + ". " + (entry.place.name.trim() || "ohne Namen");
+      if (entry.place.marker.getTooltip()) {
+        entry.place.marker.setTooltipContent(label);
       } else {
-        stop.marker.bindTooltip(label, { direction: "top" });
+        entry.place.marker.bindTooltip(label, { direction: "top" });
       }
     });
   }
 
   function fitRoute() {
-    if (stops.length === 0) { return; }
-    if (stops.length === 1) {
-      map.setView([stops[0].lat, stops[0].lng], Math.max(map.getZoom(), 14));
+    var list = entries();
+    if (list.length === 0) { return; }
+    if (list.length === 1) {
+      map.setView([list[0].place.lat, list[0].place.lng], Math.max(map.getZoom(), 14));
       return;
     }
 
-    var bounds = L.latLngBounds(stops.map(function (s) { return [s.lat, s.lng]; }));
+    var bounds = L.latLngBounds(list.map(function (e) { return [e.place.lat, e.place.lng]; }));
     routeLayer.eachLayer(function (layer) {
       if (layer.getBounds) { bounds.extend(layer.getBounds()); }
     });
@@ -1050,82 +1385,95 @@
   }
 
   /* ==================================================================
-     Tabelle zeichnen
+     Gemeinsame Eingabefelder
      ================================================================== */
 
-  var list = document.getElementById("list");
-
-  function renderList() {
-    list.textContent = "";
-    stops.forEach(function (stop) { stop.ui = null; });
-
-    if (stops.length === 0) {
-      var empty = document.createElement("li");
-      empty.className = "empty";
-      empty.textContent = "Noch keine Haltestellen. Klick in die Karte setzt die erste.";
-      list.appendChild(empty);
-      return;
-    }
-
-    stops.forEach(function (stop, i) {
-      if (i > 0) { list.appendChild(buildLeg(stop, i)); }
-      list.appendChild(buildStop(stop, i));
+  function nameField(entry) {
+    var input = document.createElement("input");
+    input.className = "name";
+    input.type = "text";
+    input.value = entry.place.name;
+    input.placeholder = "Name der Haltestelle";
+    input.setAttribute("data-place", String(entry.place.id));
+    input.setAttribute("aria-label", "Name der Haltestelle");
+    input.addEventListener("input", function () { setName(entry.place, input.value, input); });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { input.blur(); }
     });
+    return input;
   }
 
-  function buildStop(stop, i) {
-    var isStart = i === 0;
-    var isEnd = i === stops.length - 1 && stops.length > 1;
+  function minutesField(entry) {
+    var input = document.createElement("input");
+    input.className = "minutes";
+    input.type = "number";
+    input.min = "0";
+    input.step = "1";
+    input.inputMode = "decimal";
+    input.placeholder = "–";
 
-    var li = document.createElement("li");
-    li.className = "stop";
-
-    var badge = document.createElement("span");
-    badge.className = "badge" + (isStart ? " is-start" : (isEnd ? " is-end" : ""));
-    badge.textContent = String(i + 1);
-    li.appendChild(badge);
-
-    var name = document.createElement("input");
-    name.className = "name";
-    name.type = "text";
-    name.value = stop.name;
-    name.placeholder = "Name der Haltestelle";
-    name.setAttribute("data-id", String(stop.id));
-    name.setAttribute("aria-label", "Name der " + (i + 1) + ". Haltestelle");
-    name.addEventListener("input", function () { setName(stop, name.value, name); });
-    name.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { name.blur(); }
+    input.addEventListener("input", function () {
+      var raw = input.value.trim();
+      if (raw === "") {
+        // Leeres Feld gibt die Teilstrecke wieder für die Schätzung frei.
+        entry.manual = false;
+        entry.minutes = null;
+      } else {
+        var parsed = parseFloat(raw.replace(",", "."));
+        if (!isNaN(parsed) && parsed >= 0) {
+          entry.manual = true;
+          entry.minutes = parsed;
+        }
+      }
+      refreshRows();
+      renderSummary();
     });
-    li.appendChild(name);
 
-    var coords = document.createElement("span");
-    coords.className = "coords num";
-    coords.textContent = stop.lat.toFixed(5) + " " + stop.lng.toFixed(5);
-    li.appendChild(coords);
+    // Beim Verlassen eines leeren Feldes die Schätzung wieder eintragen.
+    input.addEventListener("blur", function () {
+      if (input.value.trim() === "") {
+        entry.minutes = estimateMinutes(entry.leg);
+        refreshRows();
+        renderSummary();
+      }
+    });
 
-    var role = document.createElement("span");
-    role.className = "role";
-    role.textContent = isStart ? "Start" : (isEnd ? "Ziel" : "");
-    li.appendChild(role);
+    return input;
+  }
 
-    var actions = document.createElement("div");
-    actions.className = "actions";
-    actions.appendChild(iconButton("↑", "Nach oben schieben", i === 0, function () {
-      moveStop(i, -1);
-    }));
-    actions.appendChild(iconButton("↓", "Nach unten schieben", i === stops.length - 1, function () {
-      moveStop(i, 1);
-    }));
-    actions.appendChild(iconButton("◎", "Auf der Karte zeigen", false, function () {
-      map.setView([stop.lat, stop.lng], Math.max(map.getZoom(), 15));
-      stop.marker.openPopup();
-    }));
-    actions.appendChild(iconButton("✕", "Haltestelle löschen", false, function () {
-      removeStop(i);
-    }));
-    li.appendChild(actions);
+  function dwellField(entry) {
+    var input = document.createElement("input");
+    input.className = "secs";
+    input.type = "number";
+    input.min = "0";
+    input.step = "5";
+    input.value = String(entry.dwell);
+    input.setAttribute("aria-label", "Aufenthalt in Sekunden");
 
-    return li;
+    input.addEventListener("input", function () {
+      var parsed = parseInt(input.value.trim(), 10);
+      entry.dwell = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+      refreshRows();
+      renderSummary();
+    });
+
+    return input;
+  }
+
+  function resetButton(entry) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "reset";
+    b.textContent = "↺";
+    b.title = "Zurück zur OSRM-Schätzung";
+    b.setAttribute("aria-label", "Zurück zur OSRM-Schätzung");
+    b.addEventListener("click", function () {
+      entry.manual = false;
+      entry.minutes = estimateMinutes(entry.leg);
+      refreshRows();
+      renderSummary();
+    });
+    return b;
   }
 
   function iconButton(glyph, title, disabled, onClick) {
@@ -1139,49 +1487,97 @@
     return b;
   }
 
-  function buildLeg(stop, i) {
+  /* ==================================================================
+     Kartenansicht: Haltestellen mit Teilstrecken dazwischen
+     ================================================================== */
+
+  var list = document.getElementById("list");
+
+  function renderStopTable() {
+    list.textContent = "";
+    var rows = entries();
+    rows.forEach(function (entry) { entry.ui = {}; });
+
+    if (rows.length === 0) {
+      var empty = document.createElement("li");
+      empty.className = "empty";
+      empty.textContent = "Noch keine Haltestellen. Klick in die Karte setzt die erste.";
+      list.appendChild(empty);
+      return;
+    }
+
+    rows.forEach(function (entry, i) {
+      if (i > 0) { list.appendChild(buildLegRow(entry)); }
+      list.appendChild(buildStopRow(entry, i, rows.length));
+    });
+  }
+
+  function buildStopRow(entry, i, total) {
+    var isStart = i === 0;
+    var isEnd = i === total - 1 && total > 1;
+
+    var li = document.createElement("li");
+    li.className = "stop";
+
+    var badge = document.createElement("span");
+    badge.className = "badge" + (isStart ? " is-start" : (isEnd ? " is-end" : ""));
+    badge.textContent = String(i + 1);
+    li.appendChild(badge);
+
+    li.appendChild(nameField(entry));
+
+    var coords = document.createElement("span");
+    coords.className = "coords num";
+    coords.textContent = entry.place.lat.toFixed(5) + " " + entry.place.lng.toFixed(5);
+    li.appendChild(coords);
+
+    // Aufenthalt zählt an der Ziel-Haltestelle einer Teilstrecke. Am
+    // Start der Richtung gibt es keine, das Feld bleibt trotzdem
+    // bearbeitbar – in der Gegenrichtung ist derselbe Ort ein Ziel.
+    var dwellCell = document.createElement("span");
+    dwellCell.className = "dwell" + (isStart ? " idle" : "");
+    var dwell = dwellField(entry);
+    dwell.title = isStart
+      ? "Am Startpunkt dieser Richtung zählt der Aufenthalt nicht mit"
+      : "Aufenthalt an dieser Haltestelle";
+    dwellCell.appendChild(dwell);
+    dwellCell.appendChild(document.createTextNode("s"));
+    li.appendChild(dwellCell);
+    entry.ui.dwell = dwell;
+
+    var role = document.createElement("span");
+    role.className = "role";
+    role.textContent = isStart ? "Start" : (isEnd ? "Ziel" : "");
+    li.appendChild(role);
+
+    var actions = document.createElement("div");
+    actions.className = "actions";
+    actions.appendChild(iconButton("↑", "Nach oben schieben", i === 0, function () {
+      moveEntry(i, -1);
+    }));
+    actions.appendChild(iconButton("↓", "Nach unten schieben", i === total - 1, function () {
+      moveEntry(i, 1);
+    }));
+    actions.appendChild(iconButton("◎", "Auf der Karte zeigen", false, function () {
+      map.setView([entry.place.lat, entry.place.lng], Math.max(map.getZoom(), 15));
+      entry.place.marker.openPopup();
+    }));
+    actions.appendChild(iconButton("✕", "Haltestelle in beiden Richtungen löschen", false, function () {
+      removePlace(entry.place);
+    }));
+    li.appendChild(actions);
+
+    return li;
+  }
+
+  function buildLegRow(entry) {
     var li = document.createElement("li");
     li.className = "leg";
 
     var fz = document.createElement("span");
     fz.className = "fz";
     fz.appendChild(document.createTextNode("Fahrzeit"));
-
-    var input = document.createElement("input");
-    input.className = "minutes";
-    input.type = "number";
-    input.min = "0";
-    input.step = "1";
-    input.inputMode = "decimal";
-    input.placeholder = "–";
-    input.setAttribute("data-leg", String(i));
-
-    input.addEventListener("input", function () {
-      var raw = input.value.trim();
-      if (raw === "") {
-        // Leeres Feld gibt die Teilstrecke wieder für die Schätzung frei.
-        stop.manual = false;
-        stop.minutes = null;
-      } else {
-        var parsed = parseFloat(raw.replace(",", "."));
-        if (!isNaN(parsed) && parsed >= 0) {
-          stop.manual = true;
-          stop.minutes = parsed;
-        }
-      }
-      refreshLegs();
-      renderSummary();
-    });
-
-    // Beim Verlassen eines leeren Feldes die Schätzung wieder eintragen.
-    input.addEventListener("blur", function () {
-      if (input.value.trim() === "") {
-        stop.minutes = estimateMinutes(stop.leg);
-        refreshLegs();
-        renderSummary();
-      }
-    });
-
+    var input = minutesField(entry);
     fz.appendChild(input);
     fz.appendChild(document.createTextNode("Min."));
     li.appendChild(fz);
@@ -1190,73 +1586,263 @@
     tag.className = "tag";
     li.appendChild(tag);
 
-    var reset = document.createElement("button");
-    reset.type = "button";
-    reset.className = "reset";
-    reset.textContent = "↺";
-    reset.title = "Zurück zur OSRM-Schätzung";
-    reset.setAttribute("aria-label", "Zurück zur OSRM-Schätzung");
-    reset.addEventListener("click", function () {
-      stop.manual = false;
-      stop.minutes = estimateMinutes(stop.leg);
-      refreshLegs();
-      renderSummary();
-    });
+    var reset = resetButton(entry);
     li.appendChild(reset);
 
     var info = document.createElement("span");
     info.className = "info";
     li.appendChild(info);
 
-    stop.ui = { input: input, tag: tag, info: info, reset: reset };
-    updateLegRow(stop, i);
+    entry.ui.input = input;
+    entry.ui.tag = tag;
+    entry.ui.reset = reset;
+    entry.ui.info = info;
     return li;
   }
 
-  // Aktualisiert eine Teilstrecken-Zeile, ohne die Tabelle neu zu bauen –
-  // damit bleibt der Fokus im gerade bearbeiteten Feld erhalten.
-  function updateLegRow(stop, i) {
-    var ui = stop.ui;
-    if (!ui) { return; }
+  /* ==================================================================
+     Listenansicht: dichte Tabelle zum Nachprüfen und Ausdrucken
+     ================================================================== */
 
-    if (document.activeElement !== ui.input) {
-      ui.input.value = stop.minutes === null ? "" : String(stop.minutes);
+  var sheetBody = document.getElementById("sheetBody");
+  var sheetFoot = document.getElementById("sheetFoot");
+  var sheetFootCells = null;
+
+  function renderSheet() {
+    sheetBody.textContent = "";
+    sheetFoot.textContent = "";
+    sheetFootCells = null;
+
+    var rows = entries();
+    rows.forEach(function (entry) { entry.ui = {}; });
+
+    if (rows.length === 0) {
+      var tr = document.createElement("tr");
+      var td = document.createElement("td");
+      td.colSpan = 6;
+      td.className = "empty";
+      td.textContent = "Noch keine Haltestellen. In der Kartenansicht setzt ein Klick die erste.";
+      tr.appendChild(td);
+      sheetBody.appendChild(tr);
+      return;
     }
-    ui.input.classList.toggle("missing", stop.minutes === null);
-    ui.input.setAttribute("aria-label",
-      "Fahrzeit in Minuten von " + stopName(i - 1) + " nach " + stopName(i));
 
-    var leg = stop.leg;
-    var airKm = haversineKm(stops[i - 1], stops[i]);
+    rows.forEach(function (entry, i) {
+      var tr = document.createElement("tr");
 
-    if (stop.manual) {
-      ui.tag.textContent = "manuell";
-      ui.tag.className = "tag manual";
-    } else if (leg && leg.status === "ok") {
-      ui.tag.textContent = "Schätzung ×" + num(busFactor(), 2);
-      ui.tag.className = "tag";
-    } else {
-      ui.tag.textContent = "offen";
-      ui.tag.className = "tag";
-    }
+      var nr = document.createElement("td");
+      nr.className = "nr";
+      var badge = document.createElement("span");
+      badge.className = "badge" +
+        (i === 0 ? " is-start" : (i === rows.length - 1 && rows.length > 1 ? " is-end" : ""));
+      badge.textContent = String(i + 1);
+      nr.appendChild(badge);
+      tr.appendChild(nr);
 
-    ui.reset.hidden = !(stop.manual && estimateMinutes(leg) !== null);
+      var name = document.createElement("td");
+      name.className = "name";
+      name.appendChild(nameField(entry));
+      tr.appendChild(name);
 
-    if (!leg || leg.status === "pending") {
-      ui.info.textContent = "Route wird berechnet …";
-      ui.info.className = "info";
-    } else if (leg.status === "ok") {
-      ui.info.textContent = num(leg.km) + " km Straße · Pkw " +
-        num(leg.seconds / 60, 0) + " Min.";
-      ui.info.className = "info";
-    } else {
-      ui.info.textContent = "OSRM: " + leg.reason + " · " + num(airKm) + " km Luftlinie";
-      ui.info.className = "info fail";
+      var coords = document.createElement("td");
+      coords.className = "coords num";
+      coords.textContent = entry.place.lat.toFixed(5) + " " + entry.place.lng.toFixed(5);
+      tr.appendChild(coords);
+
+      // Die Fahrzeit steht in der Zeile der Haltestelle, VON der sie
+      // ausgeht – sie gehört aber dem Eintrag, ZU dem sie führt.
+      var next = rows[i + 1];
+      var fz = document.createElement("td");
+      fz.className = "r";
+      if (next) {
+        var cell = document.createElement("span");
+        cell.className = "cell";
+        var tag = document.createElement("span");
+        tag.className = "tag";
+        var input = minutesField(next);
+        var reset = resetButton(next);
+        cell.appendChild(tag);
+        cell.appendChild(reset);
+        cell.appendChild(input);
+        cell.appendChild(document.createTextNode("Min."));
+        fz.appendChild(cell);
+
+        var note = document.createElement("div");
+        note.className = "legnote";
+        fz.appendChild(note);
+
+        next.ui.input = input;
+        next.ui.tag = tag;
+        next.ui.reset = reset;
+        next.ui.info = note;
+      } else {
+        fz.textContent = "–";
+      }
+      tr.appendChild(fz);
+
+      var dwellCell = document.createElement("td");
+      dwellCell.className = "r";
+      var dwellWrap = document.createElement("span");
+      dwellWrap.className = "cell dwell" + (i === 0 ? " idle" : "");
+      var dwell = dwellField(entry);
+      dwellWrap.appendChild(dwell);
+      dwellWrap.appendChild(document.createTextNode("s"));
+      dwellCell.appendChild(dwellWrap);
+      tr.appendChild(dwellCell);
+      entry.ui.dwell = dwell;
+
+      var run = document.createElement("td");
+      run.className = "r run";
+      tr.appendChild(run);
+      entry.ui.run = run;
+
+      sheetBody.appendChild(tr);
+    });
+
+    var foot = document.createElement("tr");
+    var label = document.createElement("td");
+    label.colSpan = 3;
+    label.textContent = dir().label + " gesamt";
+    foot.appendChild(label);
+
+    var fFahrt = document.createElement("td");
+    fFahrt.className = "r";
+    foot.appendChild(fFahrt);
+
+    var fHalt = document.createElement("td");
+    fHalt.className = "r";
+    foot.appendChild(fHalt);
+
+    var fSum = document.createElement("td");
+    fSum.className = "r";
+    foot.appendChild(fSum);
+
+    sheetFoot.appendChild(foot);
+    sheetFootCells = { fahrt: fFahrt, halt: fHalt, sum: fSum };
+  }
+
+  /* ==================================================================
+     Zeilen auffrischen, ohne die Tabelle neu zu bauen
+     (damit bleibt der Fokus im gerade bearbeiteten Feld erhalten)
+     ================================================================== */
+
+  function refreshRows() {
+    var rows = entries();
+    var runSeconds = 0;
+
+    rows.forEach(function (entry, i) {
+      var ui = entry.ui || {};
+
+      if (i > 0) {
+        runSeconds += (entry.minutes === null ? 0 : entry.minutes * 60) + entry.dwell;
+      }
+
+      if (ui.dwell && document.activeElement !== ui.dwell) {
+        ui.dwell.value = String(entry.dwell);
+      }
+
+      if (ui.run) { ui.run.textContent = clock(runSeconds); }
+
+      if (ui.input) {
+        if (document.activeElement !== ui.input) {
+          ui.input.value = entry.minutes === null ? "" : String(entry.minutes);
+        }
+        ui.input.classList.toggle("missing", entry.minutes === null);
+        ui.input.setAttribute("aria-label",
+          "Fahrzeit in Minuten von " + nameOf(rows[i - 1]) + " nach " + nameOf(entry));
+      }
+
+      if (ui.tag) {
+        if (entry.manual) {
+          ui.tag.textContent = "manuell";
+          ui.tag.className = "tag manual";
+        } else if (entry.leg && entry.leg.status === "ok") {
+          ui.tag.textContent = "Schätzung ×" + num(busFactor(), 2);
+          ui.tag.className = "tag";
+        } else {
+          ui.tag.textContent = "offen";
+          ui.tag.className = "tag";
+        }
+      }
+
+      if (ui.reset) {
+        ui.reset.hidden = !(entry.manual && estimateMinutes(entry.leg) !== null);
+      }
+
+      if (ui.info) {
+        var leg = entry.leg;
+        if (!leg || leg.status === "pending") {
+          ui.info.textContent = "Route wird berechnet …";
+          ui.info.className = ui.info.className.replace(" fail", "");
+        } else if (leg.status === "ok") {
+          ui.info.textContent = num(leg.km) + " km Straße · Pkw " + num(leg.seconds / 60, 0) + " Min.";
+          ui.info.className = ui.info.className.replace(" fail", "");
+        } else {
+          var air = haversineKm(rows[i - 1].place, entry.place);
+          ui.info.textContent = "OSRM: " + leg.reason + " · " + num(air) + " km Luftlinie";
+          if (ui.info.className.indexOf("fail") === -1) { ui.info.className += " fail"; }
+        }
+      }
+    });
+
+    if (sheetFootCells) {
+      var t = totalsFor(dir());
+      sheetFootCells.fahrt.textContent = clock(t.driveSeconds);
+      sheetFootCells.halt.textContent = clock(t.dwellSeconds);
+      sheetFootCells.sum.textContent = clock(t.totalSeconds);
     }
   }
 
-  function refreshLegs() {
-    for (var i = 1; i < stops.length; i++) { updateLegRow(stops[i], i); }
+  /* ==================================================================
+     Kennzahlen je Richtung
+     ================================================================== */
+
+  function totalsFor(direction) {
+    var rows = direction.entries;
+    var out = {
+      stops: rows.length,
+      legs: Math.max(0, rows.length - 1),
+      driveSeconds: 0,
+      dwellSeconds: 0,
+      totalSeconds: 0,
+      missing: 0,
+      manual: 0,
+      km: 0,
+      partlyAir: false,
+      longest: null
+    };
+
+    for (var i = 1; i < rows.length; i++) {
+      var entry = rows[i];
+
+      // Aufenthalt zählt an der Ziel-Haltestelle jeder Teilstrecke.
+      out.dwellSeconds += entry.dwell;
+
+      if (entry.manual) { out.manual++; }
+
+      if (entry.minutes === null) {
+        out.missing++;
+      } else {
+        out.driveSeconds += entry.minutes * 60;
+        if (out.longest === null || entry.minutes > out.longest.minutes) {
+          out.longest = {
+            minutes: entry.minutes,
+            from: nameOf(rows[i - 1]),
+            to: nameOf(entry)
+          };
+        }
+      }
+
+      if (entry.leg && entry.leg.status === "ok") {
+        out.km += entry.leg.km;
+      } else {
+        out.km += haversineKm(rows[i - 1].place, entry.place);
+        out.partlyAir = true;
+      }
+    }
+
+    out.totalSeconds = out.driveSeconds + out.dwellSeconds;
+    return out;
   }
 
   /* ==================================================================
@@ -1264,51 +1850,91 @@
      ================================================================== */
 
   var headlineEl = document.getElementById("headline");
-  var metricsEl = document.getElementById("metrics");
+  var totalsEl = document.getElementById("totals");
+  var totalsBody = document.getElementById("totalsBody");
   var detailsEl = document.getElementById("details");
   var warnEl = document.getElementById("warn");
   var statusEl = document.getElementById("status");
   var lineInput = document.getElementById("lineNo");
   var factorInput = document.getElementById("busFactor");
+  var dwellInput = document.getElementById("defaultDwell");
   var btnFit = document.getElementById("btnFit");
   var btnRetry = document.getElementById("btnRetry");
   var btnClear = document.getElementById("btnClear");
+  var btnMirror = document.getElementById("btnMirror");
+  var btnPrint = document.getElementById("btnPrint");
   var mapHint = document.getElementById("mapHint");
+  var subOut = document.getElementById("subOut");
+  var subBack = document.getElementById("subBack");
+  var printHead = document.getElementById("printHead");
 
-  function metric(term, value) {
-    var wrap = document.createElement("div");
-    wrap.className = "metric";
-    var dt = document.createElement("dt");
-    dt.textContent = term;
-    var dd = document.createElement("dd");
-    dd.textContent = value;
-    wrap.appendChild(dt);
-    wrap.appendChild(dd);
-    return wrap;
+  function totalsRow(label, t, className) {
+    var tr = document.createElement("tr");
+    if (className) { tr.className = className; }
+
+    [label,
+     t.stops === null ? "–" : String(t.stops),
+     clock(t.driveSeconds),
+     clock(t.dwellSeconds),
+     clock(t.totalSeconds)
+    ].forEach(function (text) {
+      var td = document.createElement("td");
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+
+    return tr;
   }
 
   function renderSummary() {
-    var n = stops.length;
+    var rows = entries();
+    var n = rows.length;
+
+    var tOut = totalsFor(dirs.out);
+    var tBack = totalsFor(dirs.back);
+    var tActive = activeDir === "out" ? tOut : tBack;
+
+    subOut.textContent = dirs.out.entries.length ? clock(tOut.totalSeconds) : "";
+    subBack.textContent = dirs.back.entries.length ? clock(tBack.totalSeconds) : "";
+
+    printHead.textContent = "";
+    var lineLabel = lineInput.value.trim();
+    printHead.appendChild(document.createTextNode(
+      (lineLabel ? "Linie " + lineLabel + " · " : "") + dir().label));
+    if (n > 1) {
+      var meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = "  ·  " + n + " Haltestellen  ·  Fahrzeit " +
+        clock(tActive.driveSeconds) + "  ·  Aufenthalt " + clock(tActive.dwellSeconds) +
+        "  ·  gesamt " + clock(tActive.totalSeconds);
+      printHead.appendChild(meta);
+    }
 
     btnFit.disabled = n === 0;
-    btnClear.disabled = n === 0;
+    btnClear.disabled = places.length === 0;
+    btnMirror.hidden = activeDir !== "back";
+    btnMirror.disabled = dirs.out.entries.length === 0;
+    btnPrint.hidden = activeView !== "list";
     mapHint.hidden = n > 0;
 
-    // Routing-Zähler für die Statuszeile
+    // Routing-Zähler beider Richtungen für die Statuszeile
     var road = 0, pending = 0, failed = 0;
-    for (var k = 1; k < n; k++) {
-      var st = stops[k].leg ? stops[k].leg.status : "pending";
-      if (st === "ok") { road++; } else if (st === "pending") { pending++; } else { failed++; }
-    }
+    DIR_KEYS.forEach(function (key) {
+      var l = dirs[key].entries;
+      for (var i = 1; i < l.length; i++) {
+        var st = l[i].leg ? l[i].leg.status : "pending";
+        if (st === "ok") { road++; } else if (st === "pending") { pending++; } else { failed++; }
+      }
+    });
     btnRetry.disabled = failed === 0;
 
     statusEl.textContent = "";
-    if (n === 0) {
+    if (places.length === 0) {
       statusEl.textContent = "Noch keine Haltestellen";
     } else {
       var bits = [
-        [n + " " + plural(n, "Haltestelle", "Haltestellen"), null],
-        [road + " über Straße", "road"]
+        [places.length + " " + plural(places.length, "Haltestelle", "Haltestellen"), null],
+        [road + " Teilstrecken über Straße", "road"]
       ];
       if (pending) { bits.push([pending + " in Berechnung", "pending"]); }
       if (failed) { bits.push([failed + " ohne Route", "air"]); }
@@ -1326,96 +1952,81 @@
 
     if (n === 0) {
       headlineEl.textContent = "Noch keine Haltestellen gesetzt.";
-      metricsEl.hidden = true;
+      totalsEl.hidden = true;
       detailsEl.hidden = true;
       warnEl.hidden = true;
       return;
     }
 
     if (n === 1) {
-      headlineEl.textContent = "Nur eine Haltestelle (" + stopName(0) +
+      headlineEl.textContent = dir().label + ": nur eine Haltestelle (" + nameOf(rows[0]) +
         ") – setze mindestens eine weitere, damit eine Fahrzeit entsteht.";
-      metricsEl.hidden = true;
+      totalsEl.hidden = true;
       detailsEl.hidden = true;
       warnEl.hidden = true;
       return;
     }
 
-    var legs = n - 1;
-    var total = 0;
-    var missing = 0;
-    var manual = 0;
-    var km = 0;
-    var kmIsPartlyAir = false;
-    var longest = null;
+    // Kernsatz mit Kontext für die angezeigte Richtung. Fehlt jede
+    // Fahrzeit, wäre eine Minutenzahl aus reiner Aufenthaltszeit
+    // irreführend – dann sagt der Satz das offen.
+    var route = dir().label + " " + nameOf(rows[0]) + " → " + nameOf(rows[n - 1]);
+    var overStops = " über " + n + " " + plural(n, "Haltestelle", "Haltestellen");
 
-    for (var i = 1; i < n; i++) {
-      var stop = stops[i];
-      var leg = stop.leg;
-
-      if (leg && leg.status === "ok") {
-        km += leg.km;
-      } else {
-        km += haversineKm(stops[i - 1], stop);
-        kmIsPartlyAir = true;
-      }
-
-      if (stop.manual) { manual++; }
-
-      if (stop.minutes === null) {
-        missing++;
-      } else {
-        total += stop.minutes;
-        if (longest === null || stop.minutes > longest.minutes) {
-          longest = { minutes: stop.minutes, from: stopName(i - 1), to: stopName(i) };
-        }
-      }
+    if (tActive.legs > 0 && tActive.missing === tActive.legs) {
+      headlineEl.textContent = route + ": Fahrzeit noch offen" + overStops +
+        " (keine Teilstrecke hat eine Fahrzeit, " +
+        clock(tActive.dwellSeconds) + " Aufenthalt sind erfasst)";
+    } else {
+      headlineEl.textContent = route + ": " + minutesLabel(tActive.totalSeconds) +
+        overStops + " (" + minutesLabel(tActive.driveSeconds) + " Fahrt, " +
+        clock(tActive.dwellSeconds) + " Aufenthalt)";
     }
 
-    // Kernsatz mit Kontext statt nackter Zahl.
-    headlineEl.textContent = stopName(0) + " → " + stopName(n - 1) + ": " +
-      minutesLabel(total) + " über " + n + " " + plural(n, "Haltestelle", "Haltestellen");
-
-    metricsEl.textContent = "";
-    metricsEl.appendChild(metric("Gesamtfahrzeit",
-      minutesLabel(total) + (total >= 60 ? " (" + asHours(total) + ")" : "")));
-    metricsEl.appendChild(metric("Haltestellen", String(n)));
-    metricsEl.appendChild(metric("Teilstrecken", String(legs)));
-    metricsEl.appendChild(metric("Streckenlänge",
-      num(km) + " km" + (kmIsPartlyAir ? " *" : "")));
-    metricsEl.hidden = false;
+    totalsBody.textContent = "";
+    totalsBody.appendChild(totalsRow("Hinfahrt", tOut, activeDir === "out" ? "active" : ""));
+    totalsBody.appendChild(totalsRow("Rückfahrt", tBack, activeDir === "back" ? "active" : ""));
+    totalsBody.appendChild(totalsRow("Linienumlauf", {
+      stops: null,
+      driveSeconds: tOut.driveSeconds + tBack.driveSeconds,
+      dwellSeconds: tOut.dwellSeconds + tBack.dwellSeconds,
+      totalSeconds: tOut.totalSeconds + tBack.totalSeconds
+    }, "cycle"));
+    totalsEl.hidden = false;
 
     var parts = [];
     var line = lineInput.value.trim();
     if (line) { parts.push("Linie " + line); }
+
     var factorText = "Schätzung ×" + num(busFactor(), 2);
-    if (manual === 0) {
-      parts.push("alle " + legs + " " + plural(legs, "Teilstrecke", "Teilstrecken") +
-                 " als " + factorText);
-    } else if (manual === legs) {
-      parts.push("alle " + legs + " " + plural(legs, "Teilstrecke", "Teilstrecken") + " manuell");
+    if (tActive.manual === 0) {
+      parts.push("alle " + tActive.legs + " " +
+                 plural(tActive.legs, "Teilstrecke", "Teilstrecken") + " als " + factorText);
+    } else if (tActive.manual === tActive.legs) {
+      parts.push("alle " + tActive.legs + " " +
+                 plural(tActive.legs, "Teilstrecke", "Teilstrecken") + " manuell");
     } else {
-      parts.push(manual + " von " + legs + " " +
-                 plural(legs, "Teilstrecke", "Teilstrecken") +
+      parts.push(tActive.manual + " von " + tActive.legs + " " +
+                 plural(tActive.legs, "Teilstrecke", "Teilstrecken") +
                  " manuell, Rest " + factorText);
     }
-    if (legs - missing > 0) {
-      parts.push("Ø " + num(total / (legs - missing)) + " Min. je Teilstrecke");
+
+    parts.push(num(tActive.km) + " km" + (tActive.partlyAir ? " (teilweise Luftlinie)" : " Strecke"));
+    if (tActive.longest) {
+      parts.push("längste Teilstrecke: " + tActive.longest.from + " → " + tActive.longest.to +
+                 " (" + num(tActive.longest.minutes) + " Min.)");
     }
-    if (longest) {
-      parts.push("längste Teilstrecke: " + longest.from + " → " + longest.to +
-                 " (" + num(longest.minutes) + " Min.)");
-    }
-    if (kmIsPartlyAir) { parts.push("* teilweise Luftlinie, da ohne Route"); }
+    parts.push("Umlaufzeit ohne Wendezeit");
 
     detailsEl.textContent = parts.join("  ·  ");
     detailsEl.hidden = false;
 
-    if (missing > 0) {
-      warnEl.textContent = "⚠ " + missing + " von " + legs + " " +
-        plural(legs, "Teilstrecke", "Teilstrecken") + " " +
-        plural(missing, "hat", "haben") + " keine Fahrzeit " +
-        "(keine OSRM-Route und nichts von Hand eingetragen) – die Summe ist unvollständig.";
+    var missingTotal = tOut.missing + tBack.missing;
+    if (missingTotal > 0) {
+      warnEl.textContent = "⚠ " + missingTotal + " " +
+        plural(missingTotal, "Teilstrecke hat", "Teilstrecken haben") +
+        " keine Fahrzeit (Hinfahrt " + tOut.missing + ", Rückfahrt " + tBack.missing +
+        ") – keine OSRM-Route und nichts von Hand eingetragen. Die Summen sind unvollständig.";
       warnEl.hidden = false;
     } else {
       warnEl.hidden = true;
@@ -1423,15 +2034,80 @@
   }
 
   /* ==================================================================
-     Verdrahtung
+     Ansichten und Verdrahtung
      ================================================================== */
+
+  var viewMap = document.getElementById("viewMap");
+  var viewList = document.getElementById("viewList");
+  var mapCard = document.getElementById("mapCard");
+
+  function clearSheet() {
+    sheetBody.textContent = "";
+    sheetFoot.textContent = "";
+    sheetFootCells = null;
+  }
+
+  function renderBody() {
+    if (activeView === "map") {
+      clearSheet();
+      renderStopTable();
+    } else {
+      list.textContent = "";
+      renderSheet();
+    }
+    refreshRows();
+  }
 
   function renderAll() {
     renderMarkers();
     syncRoutes();
-    renderList();
+    renderBody();
     renderSummary();
   }
+
+  function setDirection(key) {
+    if (activeDir === key) { return; }
+    activeDir = key;
+
+    var buttons = document.querySelectorAll("#segDir button");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute("aria-pressed",
+        buttons[i].getAttribute("data-dir") === key ? "true" : "false");
+    }
+
+    renderAll();
+  }
+
+  function setView(key) {
+    if (activeView === key) { return; }
+    activeView = key;
+
+    var buttons = document.querySelectorAll("#segView button");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute("aria-pressed",
+        buttons[i].getAttribute("data-view") === key ? "true" : "false");
+    }
+
+    mapCard.hidden = key !== "map";
+    viewMap.hidden = key !== "map";
+    viewList.hidden = key !== "list";
+
+    renderBody();
+    renderSummary();
+
+    // Die Karte war ausgeblendet und kennt ihre Größe nicht mehr.
+    if (key === "map") { map.invalidateSize(); }
+  }
+
+  document.getElementById("segDir").addEventListener("click", function (e) {
+    var button = e.target.closest ? e.target.closest("button[data-dir]") : null;
+    if (button) { setDirection(button.getAttribute("data-dir")); }
+  });
+
+  document.getElementById("segView").addEventListener("click", function (e) {
+    var button = e.target.closest ? e.target.closest("button[data-view]") : null;
+    if (button) { setView(button.getAttribute("data-view")); }
+  });
 
   lineInput.addEventListener("input", renderSummary);
 
@@ -1439,16 +2115,19 @@
   // von Hand gesetzte Werte bleiben unangetastet.
   factorInput.addEventListener("input", function () {
     applyEstimates();
-    refreshLegs();
+    refreshRows();
     renderSummary();
   });
 
   btnFit.addEventListener("click", fitRoute);
   btnRetry.addEventListener("click", retryFailedRoutes);
+  btnMirror.addEventListener("click", mirrorFromOut);
+  btnPrint.addEventListener("click", function () { window.print(); });
 
   btnClear.addEventListener("click", function () {
-    if (stops.length === 0) { return; }
-    if (window.confirm("Wirklich alle " + stops.length + " Haltestellen löschen?")) {
+    if (places.length === 0) { return; }
+    if (window.confirm("Wirklich alle " + places.length +
+                       " Haltestellen in beiden Richtungen löschen?")) {
       clearAll();
     }
   });
