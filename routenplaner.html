@@ -1538,6 +1538,14 @@
       <input id="scenFile" type="file" accept="application/json,.json" hidden>
     </div>
 
+    <div class="scen-bar">
+      <span class="field">Liniendaten</span>
+      <button id="btnLineImport" type="button">Liniendaten importieren (KI-Format)</button>
+      <button id="btnLineTemplate" type="button">Vorlage herunterladen</button>
+      <input id="lineFile" type="file" accept="application/json,.json" hidden>
+      <span class="planinfo" id="lineImportInfo">Für Datensätze, die eine KI im dokumentierten Liniendaten-Format liefert.</span>
+    </div>
+
     <div class="empty" id="cmpEmpty" hidden></div>
     <div class="cmp-scroll" id="cmpScroll"></div>
   </div>
@@ -2702,6 +2710,10 @@
   var btnScenExport = document.getElementById("btnScenExport");
   var btnScenExportAll = document.getElementById("btnScenExportAll");
   var btnScenImport = document.getElementById("btnScenImport");
+  var btnLineImport = document.getElementById("btnLineImport");
+  var btnLineTemplate = document.getElementById("btnLineTemplate");
+  var lineFile = document.getElementById("lineFile");
+  var lineImportInfo = document.getElementById("lineImportInfo");
   var connEditor = document.getElementById("connEditor");
   var connTables = document.getElementById("connTables");
   var connEmpty = document.getElementById("connEmpty");
@@ -4288,6 +4300,364 @@
     reader.readAsText(file);
   }
 
+  /* ==================================================================
+     Zweiter Importweg: Liniendaten im KI-Format
+
+     Bewusst schlicht und tolerant gehalten, damit eine KI ohne Kenntnis
+     der App-Struktur den Datensatz füllen kann. Alles außer Name und
+     Koordinaten der Haltestellen ist freiwillig; Fehlendes wird ergänzt
+     (Fahrzeiten über OSRM, Aufenthalte aus der Vorgabe) oder abgeleitet
+     (Rückfahrt als Spiegelung der Hinfahrt).
+     ================================================================== */
+
+  var LINE_FORMAT = "routenplaner-liniendaten";
+
+  function asNumber(value) {
+    if (typeof value === "number") { return isFinite(value) ? value : null; }
+    if (typeof value === "string" && value.trim() !== "") {
+      var parsed = parseFloat(value.replace(",", "."));
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  }
+
+  // Minuten als Zahl oder "m:ss" - beides ist erlaubt.
+  function asDurationClock(value, fallback) {
+    if (typeof value === "number" && isFinite(value) && value >= 0) {
+      return clock(Math.round(value * 60));
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      return clock(parseClock(value));
+    }
+    return fallback;
+  }
+
+  function normRelevance(value) {
+    var text = String(value === undefined || value === null ? "beide" : value)
+      .trim().toLowerCase();
+    if (text === "ankunft" || text === "ankuenfte" || text === "ankünfte" ||
+        text === "an" || text === "arrival") { return "an"; }
+    if (text === "abfahrt" || text === "abfahrten" || text === "ab" ||
+        text === "departure") { return "ab"; }
+    return "both";
+  }
+
+  function normConnection(raw, problems, where) {
+    if (!raw || typeof raw !== "object") { return null; }
+
+    var takt = asNumber(raw.takt);
+    if (takt === null || takt <= 0) {
+      problems.push(where + ": Anschluss ohne brauchbaren Takt – übersprungen.");
+      return null;
+    }
+
+    var anchor = asNumber(raw.ankerMinute !== undefined ? raw.ankerMinute : raw.anker);
+    if (anchor === null) {
+      // Auch ":15" oder "15" als Text sind zulässig.
+      var text = String(raw.ankerMinute || raw.anker || "").replace(":", "").trim();
+      anchor = text === "" ? 0 : parseInt(text, 10);
+      if (isNaN(anchor)) { anchor = 0; }
+    }
+
+    return {
+      id: nextConnId++,
+      name: String(raw.name || "").trim(),
+      hint: String(raw.richtung || raw.hinweis || "").trim(),
+      takt: takt,
+      anchor: ((Math.round(anchor) % 60) + 60) % 60,
+      rel: normRelevance(raw.gilt)
+    };
+  }
+
+  function normStops(list, label, problems) {
+    var stops = [];
+
+    (list || []).forEach(function (raw, index) {
+      var where = label + ", Haltestelle " + (index + 1);
+      if (!raw || typeof raw !== "object") {
+        problems.push(where + ": kein Objekt.");
+        return;
+      }
+
+      var name = String(raw.name || "").trim();
+      var lat = asNumber(raw.lat);
+      var lon = asNumber(raw.lon !== undefined ? raw.lon : raw.lng);
+
+      if (!name) { problems.push(where + ": Feld \"name\" fehlt."); return; }
+      if (lat === null || lon === null) {
+        problems.push(where + " (" + name + "): \"lat\" oder \"lon\" fehlt.");
+        return;
+      }
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        problems.push(where + " (" + name + "): Koordinaten außerhalb des gültigen Bereichs.");
+        return;
+      }
+
+      var dwell = asNumber(raw.aufenthalt);
+      var drive = asNumber(raw.fahrzeitVonVorheriger !== undefined
+        ? raw.fahrzeitVonVorheriger : raw.fahrzeit);
+
+      stops.push({
+        key: raw.id !== undefined && raw.id !== null
+          ? "id:" + String(raw.id)
+          : "name:" + name.toLowerCase(),
+        name: name,
+        lat: lat,
+        lon: lon,
+        dwell: (dwell === null || dwell < 0) ? null : Math.round(dwell),
+        drive: (drive === null || drive < 0) ? null : drive,
+        connections: Array.isArray(raw.anschluesse || raw.anschlüsse)
+          ? (raw.anschluesse || raw.anschlüsse)
+          : []
+      });
+    });
+
+    return stops;
+  }
+
+  function connectionSignature(conn) {
+    return [conn.name.toLowerCase(), conn.hint.toLowerCase(),
+            conn.takt, conn.anchor, conn.rel].join("|");
+  }
+
+  // Baut aus dem KI-Format den internen Datenstand.
+  function parseLineImport(raw) {
+    var problems = [];
+    var notes = [];
+
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return { problems: ["Die Datei enthält kein JSON-Objekt."] };
+    }
+
+    if (raw.format && String(raw.format).indexOf(LINE_FORMAT) !== 0) {
+      notes.push("Feld \"format\" lautet \"" + raw.format + "\" statt \"" +
+                 LINE_FORMAT + "\" – der Inhalt wird trotzdem gelesen.");
+    }
+
+    var hin = normStops(raw.hinfahrt, "Hinfahrt", problems);
+    var rueckRaw = raw.rueckfahrt || raw["rückfahrt"];
+    var rueck = rueckRaw ? normStops(rueckRaw, "Rückfahrt", problems) : null;
+
+    if (hin.length < 2) {
+      problems.push("Die Hinfahrt braucht mindestens zwei gültige Haltestellen.");
+    }
+    if (problems.length > 0) { return { problems: problems, notes: notes }; }
+
+    if (!rueck) {
+      // Ohne eigene Rückfahrt gilt die Spiegelung der Hinfahrt.
+      rueck = hin.slice().reverse().map(function (stop) {
+        return { key: stop.key, name: stop.name, lat: stop.lat, lon: stop.lon,
+                 dwell: stop.dwell, drive: null, connections: [] };
+      });
+      notes.push("Keine Rückfahrt angegeben – sie wurde als Spiegelung der Hinfahrt angelegt; " +
+                 "ihre Fahrzeiten werden eigenständig über OSRM geschätzt.");
+    } else if (rueck.length < 2) {
+      return { problems: ["Die Rückfahrt braucht mindestens zwei gültige Haltestellen."], notes: notes };
+    }
+
+    // Orte zusammenführen: gleiche id oder gleicher Name ist derselbe Ort.
+    var placesById = {};
+    var byKey = {};
+    var nextId = 1;
+    var placeList = [];
+
+    function placeFor(stop) {
+      if (byKey[stop.key]) { return byKey[stop.key]; }
+      var place = {
+        id: nextId++,
+        name: stop.name,
+        fallback: stop.name || ("Haltestelle " + nextId),
+        lat: stop.lat,
+        lng: stop.lon,
+        linkedTo: null,
+        unlinkedPos: null,
+        connections: []
+      };
+      byKey[stop.key] = place;
+      placesById[place.id] = place;
+      placeList.push(place);
+      return place;
+    }
+
+    var defaultDwell = asNumber(raw.standard && raw.standard.aufenthalt);
+    if (defaultDwell === null || defaultDwell < 0) { defaultDwell = CONFIG.dwellSeconds; }
+
+    var osrmLegs = 0;
+
+    function buildEntries(stops) {
+      return stops.map(function (stop, index) {
+        var place = placeFor(stop);
+
+        // Anschlüsse hängen am Ort und gelten für beide Richtungen;
+        // doppelt genannte werden nur einmal übernommen.
+        (stop.connections || []).forEach(function (rawConn) {
+          var conn = normConnection(rawConn, problems, stop.name);
+          if (!conn) { return; }
+          var known = place.connections.some(function (existing) {
+            return connectionSignature(existing) === connectionSignature(conn);
+          });
+          if (!known) { place.connections.push(conn); }
+        });
+
+        var hasDrive = index > 0 && stop.drive !== null;
+        if (index > 0 && !hasDrive) { osrmLegs++; }
+
+        return {
+          place: place.id,
+          minutes: hasDrive ? stop.drive : null,
+          manual: hasDrive,          // angegebene Zeiten sind gesetzt, nicht geschätzt
+          dwell: stop.dwell === null ? Math.round(defaultDwell) : stop.dwell,
+          km: null
+        };
+      });
+    }
+
+    var outEntries = buildEntries(hin);
+    var backEntries = buildEntries(rueck);
+
+    var wende = raw.wende || {};
+    var betrieb = raw.betrieb || {};
+    var standard = raw.standard || {};
+
+    var startTime = parseTimeOfDay(betrieb.beginn) === null ? "04:30" : String(betrieb.beginn);
+    var endTime = parseTimeOfDay(betrieb.ende) === null ? "23:30" : String(betrieb.ende);
+
+    var takt = asNumber(raw.takt);
+    var busFactor = asNumber(standard.busFaktor !== undefined ? standard.busFaktor : standard.busFactor);
+
+    var data = {
+      line: String(raw.linie || raw.name || "").trim(),
+      busFactor: (busFactor === null || busFactor <= 0) ? "1.4" : String(busFactor),
+      defaultDwell: String(Math.round(defaultDwell)),
+      wendeEnd: asDurationClock(wende.ziel, "5:00"),
+      wendeStart: asDurationClock(wende.start, "5:00"),
+      takt: (takt === null || takt <= 0) ? "20" : String(takt),
+      noTakt: false,
+      taktZiel: "end",
+      opStart: startTime,
+      opEnd: endTime,
+      connMin: "3",
+      connGood: "8",
+      places: placeList,
+      out: outEntries,
+      back: backEntries
+    };
+
+    var connCount = 0;
+    placeList.forEach(function (place) { connCount += place.connections.length; });
+
+    return {
+      data: data,
+      notes: notes,
+      problems: problems,
+      summary: {
+        places: placeList.length,
+        out: outEntries.length,
+        back: backEntries.length,
+        osrmLegs: osrmLegs,
+        connections: connCount
+      }
+    };
+  }
+
+  function importLineFile(file) {
+    var reader = new FileReader();
+
+    reader.onload = function () {
+      var parsed;
+      try {
+        parsed = JSON.parse(String(reader.result));
+      } catch (err) {
+        window.alert("Die Datei enthält kein lesbares JSON.\n\n" + err.message);
+        return;
+      }
+
+      var result = parseLineImport(parsed);
+
+      if (!result.data) {
+        window.alert("Die Liniendaten konnten nicht gelesen werden:\n\n• " +
+                     result.problems.join("\n• "));
+        return;
+      }
+
+      if (isDirty() &&
+          !window.confirm("Die Arbeitsversion hat ungesicherte Änderungen.\n\n" +
+                          "Liniendaten laden und die aktuelle Arbeitsversion ersetzen?")) {
+        return;
+      }
+
+      applyData(result.data);
+
+      var lines = [
+        result.summary.places + " " + plural(result.summary.places, "Haltestelle", "Haltestellen") +
+          " übernommen (Hinfahrt " + result.summary.out + ", Rückfahrt " + result.summary.back + ")",
+        result.summary.connections + " " +
+          plural(result.summary.connections, "Anschluss", "Anschlüsse") + " angelegt",
+        result.summary.osrmLegs === 0
+          ? "Alle Fahrzeiten waren angegeben."
+          : result.summary.osrmLegs + " " +
+            plural(result.summary.osrmLegs, "Teilstrecke ohne Fahrzeit wird", "Teilstrecken ohne Fahrzeit werden") +
+            " gerade über OSRM geschätzt."
+      ];
+      if (result.notes.length) { lines.push("", "Hinweise:", "• " + result.notes.join("\n• ")); }
+      if (result.problems.length) { lines.push("", "Übersprungen:", "• " + result.problems.join("\n• ")); }
+
+      lineImportInfo.textContent = lines[0] + "  ·  " + lines[1] + "  ·  " + lines[2];
+
+      var vorschlag = (result.data.line ? "Linie " + result.data.line : "Liniendaten") +
+        " – Import " + new Date().toISOString().slice(0, 10);
+
+      if (window.confirm(lines.join("\n") + "\n\nZusätzlich als Szenario sichern?")) {
+        var name = window.prompt("Name des Szenarios:", vorschlag);
+        if (name !== null && name.trim()) {
+          scenName.value = name.trim();
+          saveScenario();
+        }
+      } else {
+        renderCompare();
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+  function downloadLineTemplate() {
+    downloadJson("routenplaner-liniendaten-vorlage.json", {
+      format: LINE_FORMAT,
+      version: 1,
+      linie: "697",
+      takt: 20,
+      wende: { start: 5, ziel: 5 },
+      betrieb: { beginn: "04:30", ende: "23:30" },
+      standard: { aufenthalt: 20, busFaktor: 1.4 },
+      hinfahrt: [
+        {
+          name: "Bhf Pirschheide",
+          lat: 52.38390,
+          lon: 13.00350,
+          aufenthalt: 30,
+          anschluesse: [
+            { name: "RB23", richtung: "Ri. Potsdam Hbf", takt: 60, ankerMinute: 12, gilt: "beide" }
+          ]
+        },
+        {
+          name: "Kladow Hafen",
+          lat: 52.45420,
+          lon: 13.14360,
+          fahrzeitVonVorheriger: 24,
+          aufenthalt: 20,
+          anschluesse: [
+            { name: "Fähre F10", richtung: "Ri. Wannsee", takt: 20, ankerMinute: 10, gilt: "ankunft" }
+          ]
+        }
+      ],
+      rueckfahrt: [
+        { name: "Kladow Hafen", lat: 52.45420, lon: 13.14360 },
+        { name: "Bhf Pirschheide", lat: 52.38390, lon: 13.00350, fahrzeitVonVorheriger: 26 }
+      ]
+    });
+  }
+
   /* ---------- Vergleichstabelle ---------- */
 
   function cmpValue(metrics, key) {
@@ -5149,6 +5519,13 @@
 
   scenName.addEventListener("keydown", function (e) {
     if (e.key === "Enter") { saveScenario(); }
+  });
+
+  btnLineImport.addEventListener("click", function () { lineFile.click(); });
+  btnLineTemplate.addEventListener("click", downloadLineTemplate);
+  lineFile.addEventListener("change", function () {
+    if (lineFile.files && lineFile.files[0]) { importLineFile(lineFile.files[0]); }
+    lineFile.value = "";
   });
 
   // Betriebszeit steht in Tagesfahrplan und Bildfahrplan; beide Paare
