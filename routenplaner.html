@@ -35,7 +35,7 @@
     --stand: #7c848c;        /* Wende- und Standzeiten */
 
     /* # | Haltestelle | Koordinaten | Aufenthalt | Rolle | Aktion */
-    --grid: 24px minmax(110px, 1fr) 108px 94px 46px 142px;
+    --grid: 24px minmax(100px, 1fr) 104px 116px 44px 142px;
   }
 
   * { box-sizing: border-box; }
@@ -433,7 +433,7 @@
   }
 
   input.secs {
-    width: 46px;
+    width: 38px;
     border: 1px solid var(--line);
     border-radius: var(--r);
     padding: 2px 4px;
@@ -698,23 +698,38 @@
     border-bottom: 1px solid var(--line-soft);
   }
 
-  .veh-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    padding: 1px 7px 1px 3px;
-    background: var(--panel);
+  .veh-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+    gap: 2px 18px;
   }
 
-  .veh-chip i {
+  .veh-row {
+    display: grid;
+    grid-template-columns: 14px 84px minmax(140px, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--muted);
+    padding: 1px 0;
+  }
+
+  .veh-row i {
     width: 14px;
     height: 14px;
     border-radius: 2px;
     border: 1px solid rgba(34, 39, 44, 0.22);
     display: inline-block;
+  }
+
+  .veh-row .veh-name { font-weight: 600; color: var(--text); }
+
+  #bildLegend { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); }
+  #bildLegend .veh-row { grid-template-columns: 14px auto; }
+  .veh-row .veh-span { font-variant-numeric: tabular-nums; color: var(--text); }
+  .veh-row .veh-dur, .veh-row .veh-trips {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   table.plan td.veh {
@@ -758,6 +773,23 @@
   }
 
   table.plan tbody tr.newhour td { border-top: 1px solid var(--line); }
+
+  /* ---------- Bildfahrplan ---------- */
+
+  .bild-scroll { overflow-x: auto; padding: 8px 0 4px; }
+
+  svg.bild { display: block; }
+
+  svg.bild text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  svg.bild .ax { font-size: 10px; fill: var(--muted-2); }
+  svg.bild .stoplabel { font-size: 11px; fill: var(--text); }
+  svg.bild .stoppct { font-size: 9.5px; fill: var(--muted-2); }
+  svg.bild .endmark { font-size: 10px; font-weight: 600; fill: var(--warn); }
 
   /* ---------- Zusammenfassung ---------- */
 
@@ -974,10 +1006,13 @@
 
   @media print {
     body { background: #fff; font-size: 10.5px; }
-    .planbar, .veh-legend, table.plan td.veh span, table.plan td.time {
+    .planbar, .veh-legend, table.plan td.veh span, table.plan td.time,
+    .veh-row i, svg.bild {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
+    .bild-scroll { overflow: visible; }
+    svg.bild { width: 100% !important; height: auto; }
     header.app .sub { display: none; }
     .printhead {
       display: block;
@@ -1056,6 +1091,7 @@
         <button type="button" data-view="list" aria-pressed="false">Liste</button>
         <button type="button" data-view="schema" aria-pressed="false">Schema</button>
         <button type="button" data-view="plan" aria-pressed="false">Tagesfahrplan</button>
+        <button type="button" data-view="bild" aria-pressed="false">Bildfahrplan</button>
       </div>
     </div>
   </div>
@@ -1145,6 +1181,24 @@
       </thead>
       <tbody id="planBody"></tbody>
     </table>
+  </div>
+
+  <!-- Bildfahrplan: Weg-Zeit-Diagramm aller Fahrzeugumläufe -->
+  <div class="table" id="viewBild" hidden>
+    <div class="planbar">
+      <label class="field">
+        Betriebsbeginn
+        <input id="bildStart" type="time" value="04:30" step="60">
+      </label>
+      <label class="field">
+        Betriebsende
+        <input id="bildEnd" type="time" value="23:30" step="60">
+      </label>
+      <span class="planinfo" id="bildInfo"></span>
+    </div>
+    <div class="veh-legend" id="bildLegend" hidden></div>
+    <div class="empty" id="bildEmpty" hidden></div>
+    <div class="bild-scroll" id="bildScroll"></div>
   </div>
 
   <section class="summary" aria-live="polite">
@@ -1918,23 +1972,56 @@
     return input;
   }
 
-  function dwellField(entry) {
-    var input = document.createElement("input");
-    input.className = "secs";
-    input.type = "number";
-    input.min = "0";
-    input.step = "5";
-    input.value = String(entry.dwell);
-    input.setAttribute("aria-label", "Aufenthalt in Sekunden");
+  // Aufenthalt wird in zwei Feldern eingegeben, intern aber weiterhin in
+  // Sekunden geführt - an der Berechnung ändert sich dadurch nichts.
+  function dwellFields(entry, idle) {
+    var wrap = document.createElement("span");
+    wrap.className = "dwell" + (idle ? " idle" : "");
 
-    input.addEventListener("input", function () {
-      var parsed = parseInt(input.value.trim(), 10);
-      entry.dwell = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+    var minutes = document.createElement("input");
+    minutes.className = "secs";
+    minutes.type = "number";
+    minutes.min = "0";
+    minutes.step = "1";
+    minutes.setAttribute("aria-label", "Aufenthalt, Minuten");
+
+    var seconds = document.createElement("input");
+    seconds.className = "secs";
+    seconds.type = "number";
+    seconds.min = "0";
+    seconds.step = "5";
+    seconds.setAttribute("aria-label", "Aufenthalt, Sekunden");
+
+    function readField(input) {
+      var parsed = parseInt(String(input.value).trim(), 10);
+      return (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+    }
+
+    function apply() {
+      entry.dwell = readField(minutes) * 60 + readField(seconds);
       refreshRows();
       renderSummary();
-    });
+    }
 
-    return input;
+    minutes.addEventListener("input", apply);
+    seconds.addEventListener("input", apply);
+
+    // Beim Verlassen aufräumen: 90 s werden zu 1 min 30 s.
+    function normalize() {
+      minutes.value = String(Math.floor(entry.dwell / 60));
+      seconds.value = String(entry.dwell % 60);
+    }
+    minutes.addEventListener("blur", normalize);
+    seconds.addEventListener("blur", normalize);
+
+    wrap.appendChild(minutes);
+    wrap.appendChild(document.createTextNode("m"));
+    wrap.appendChild(seconds);
+    wrap.appendChild(document.createTextNode("s"));
+
+    entry.ui.dwellMin = minutes;
+    entry.ui.dwellSec = seconds;
+    return wrap;
   }
 
   function resetButton(entry) {
@@ -2011,16 +2098,11 @@
     // Aufenthalt zählt an der Ziel-Haltestelle einer Teilstrecke. Am
     // Start der Richtung gibt es keine, das Feld bleibt trotzdem
     // bearbeitbar – in der Gegenrichtung ist derselbe Ort ein Ziel.
-    var dwellCell = document.createElement("span");
-    dwellCell.className = "dwell" + (isStart ? " idle" : "");
-    var dwell = dwellField(entry);
-    dwell.title = isStart
+    var dwellCell = dwellFields(entry, isStart);
+    dwellCell.title = isStart
       ? "Am Startpunkt dieser Richtung zählt der Aufenthalt nicht mit"
       : "Aufenthalt an dieser Haltestelle";
-    dwellCell.appendChild(dwell);
-    dwellCell.appendChild(document.createTextNode("s"));
     li.appendChild(dwellCell);
-    entry.ui.dwell = dwell;
 
     var role = document.createElement("span");
     role.className = "role";
@@ -2179,14 +2261,10 @@
 
       var dwellCell = document.createElement("td");
       dwellCell.className = "r";
-      var dwellWrap = document.createElement("span");
-      dwellWrap.className = "cell dwell" + (i === 0 ? " idle" : "");
-      var dwell = dwellField(entry);
-      dwellWrap.appendChild(dwell);
-      dwellWrap.appendChild(document.createTextNode("s"));
+      var dwellWrap = dwellFields(entry, i === 0);
+      dwellWrap.className += " cell";
       dwellCell.appendChild(dwellWrap);
       tr.appendChild(dwellCell);
-      entry.ui.dwell = dwell;
 
       var run = document.createElement("td");
       run.className = "r run";
@@ -2232,6 +2310,12 @@
   var planInfo = document.getElementById("planInfo");
   var opStartInput = document.getElementById("opStart");
   var opEndInput = document.getElementById("opEnd");
+  var bildScroll = document.getElementById("bildScroll");
+  var bildLegend = document.getElementById("bildLegend");
+  var bildEmpty = document.getElementById("bildEmpty");
+  var bildInfo = document.getElementById("bildInfo");
+  var bildStartInput = document.getElementById("bildStart");
+  var bildEndInput = document.getElementById("bildEnd");
 
   var SVGNS = "http://www.w3.org/2000/svg";
 
@@ -2515,10 +2599,14 @@
     planTable.hidden = false;
 
     var counts = [];
+    var firstDep = [];
+    var lastDep = [];
     var lastHour = -1;
 
     plan.trips.forEach(function (trip) {
       counts[trip.vehicle] = (counts[trip.vehicle] || 0) + 1;
+      if (firstDep[trip.vehicle] === undefined) { firstDep[trip.vehicle] = trip.time; }
+      lastDep[trip.vehicle] = trip.time;
 
       var tr = document.createElement("tr");
       var hour = Math.floor(trip.time / 3600);
@@ -2566,15 +2654,41 @@
       planBody.appendChild(tr);
     });
 
+    // Einsatzzeit je Fahrzeug: von der ersten bis zur letzten Abfahrt,
+    // die ihm zugeordnet ist.
     for (var v = 1; v <= plan.vehicles; v++) {
-      var chip = document.createElement("span");
-      chip.className = "veh-chip";
+      var row = document.createElement("div");
+      row.className = "veh-row";
+
       var swatch = document.createElement("i");
       swatch.style.background = vehicleColor(v);
-      chip.appendChild(swatch);
-      chip.appendChild(document.createTextNode(
-        "Fahrzeug " + v + " · " + (counts[v] || 0) + " Fahrten"));
-      planLegend.appendChild(chip);
+      row.appendChild(swatch);
+
+      var name = document.createElement("span");
+      name.className = "veh-name";
+      name.textContent = "Fahrzeug " + v;
+      row.appendChild(name);
+
+      var span = document.createElement("span");
+      span.className = "veh-span";
+      span.textContent = firstDep[v] === undefined
+        ? "kein Einsatz"
+        : hhmm(firstDep[v]) + "–" + hhmm(lastDep[v]) + " im Einsatz";
+      row.appendChild(span);
+
+      var dur = document.createElement("span");
+      dur.className = "veh-dur";
+      dur.textContent = firstDep[v] === undefined
+        ? "–"
+        : clock(lastDep[v] - firstDep[v]) + " Spanne";
+      row.appendChild(dur);
+
+      var trips = document.createElement("span");
+      trips.className = "veh-trips";
+      trips.textContent = (counts[v] || 0) + " " + plural(counts[v] || 0, "Fahrt", "Fahrten");
+      row.appendChild(trips);
+
+      planLegend.appendChild(row);
     }
 
     var info = [
@@ -2589,6 +2703,181 @@
       info.push("⚠ " + plan.missing + " Teilstrecken ohne Fahrzeit – Zeiten zu kurz");
     }
     planInfo.textContent = info.join("  ·  ");
+  }
+
+  /* ==================================================================
+     Bildfahrplan (Weg-Zeit-Diagramm)
+
+     Waagerecht die Uhrzeit, senkrecht die Streckenposition von 0 % an
+     der Starthaltestelle unten bis 100 % an der Endhaltestelle oben.
+     Die Position einer Haltestelle ergibt sich aus ihrer kumulierten
+     Fahrzeit ab Start, je Richtung eigenständig gerechnet.
+     ================================================================== */
+
+  // Kumulierte Fahrzeit je Haltestelle, auf 0..1 normiert.
+  function positions(entriesList, reversed) {
+    var cum = [0];
+    var total = 0;
+
+    for (var i = 1; i < entriesList.length; i++) {
+      total += (entriesList[i].minutes === null ? 0 : entriesList[i].minutes) * 60;
+      cum.push(total);
+    }
+
+    return cum.map(function (value) {
+      var share = total > 0 ? value / total : 0;
+      return reversed ? 1 - share : share;
+    });
+  }
+
+  // Stützpunkte einer einzelnen Fahrt: an jeder Haltestelle ein Knick,
+  // während des Aufenthalts eine waagerechte Strecke.
+  function tripPoints(entriesList, posList, departure) {
+    var points = [[departure, posList[0]]];
+    var t = departure;
+
+    for (var i = 1; i < entriesList.length; i++) {
+      t += (entriesList[i].minutes === null ? 0 : entriesList[i].minutes) * 60;
+      points.push([t, posList[i]]);
+
+      // Ohne Aufenthalt entstünde ein doppelter Punkt ohne Wirkung.
+      if (entriesList[i].dwell > 0) {
+        t += entriesList[i].dwell;
+        points.push([t, posList[i]]);
+      }
+    }
+
+    return points;
+  }
+
+  function renderBild() {
+    bildScroll.textContent = "";
+    bildLegend.textContent = "";
+
+    var plan = buildSchedule();
+
+    if (plan.error) {
+      bildEmpty.textContent = plan.error;
+      bildEmpty.hidden = false;
+      bildLegend.hidden = true;
+      bildInfo.textContent = "";
+      return;
+    }
+
+    bildEmpty.hidden = true;
+    bildLegend.hidden = false;
+
+    var out = dirs.out.entries;
+    var back = dirs.back.entries;
+    var posOut = positions(out, false);
+    var posBack = positions(back, true);
+
+    // Linienzug je Fahrzeug: die Fahrten in zeitlicher Folge aneinander
+    // gehängt, die Standzeiten dazwischen ergeben die waagerechten Stücke.
+    var byVehicle = {};
+    plan.trips.forEach(function (trip) {
+      var list = trip.dir === "out" ? out : back;
+      var pos = trip.dir === "out" ? posOut : posBack;
+      var points = tripPoints(list, pos, trip.time);
+      if (!byVehicle[trip.vehicle]) { byVehicle[trip.vehicle] = []; }
+      byVehicle[trip.vehicle] = byVehicle[trip.vehicle].concat(points);
+    });
+
+    // Zeitachse bis zur letzten Bewegung ausdehnen, damit keine Linie
+    // mitten in der Fahrt abgeschnitten wird.
+    var tMin = plan.startSec;
+    var tMax = plan.endSec;
+    Object.keys(byVehicle).forEach(function (key) {
+      byVehicle[key].forEach(function (pt) { if (pt[0] > tMax) { tMax = pt[0]; } });
+    });
+    if (tMax <= tMin) { tMax = tMin + 3600; }
+
+    var PAD_L = 176, PAD_R = 26, PAD_T = 26, PAD_B = 34;
+    var PLOT_H = Math.max(300, 44 * Math.max(2, out.length));
+    var hours = (tMax - tMin) / 3600;
+    var PLOT_W = Math.max(660, Math.round(hours * 92));
+    var W = PAD_L + PLOT_W + PAD_R;
+    var H = PAD_T + PLOT_H + PAD_B;
+
+    var x = function (sec) { return PAD_L + (sec - tMin) / (tMax - tMin) * PLOT_W; };
+    var y = function (share) { return PAD_T + (1 - share) * PLOT_H; };
+
+    var svg = svgEl("svg", {
+      class: "bild", width: W, height: H, viewBox: "0 0 " + W + " " + H,
+      role: "img", "aria-label": "Bildfahrplan: Weg-Zeit-Diagramm aller Fahrzeugumläufe"
+    });
+
+    // Waagerechte Hilfslinien und Namen der Hinfahrt-Haltestellen
+    out.forEach(function (entry, i) {
+      var yy = y(posOut[i]);
+      svg.appendChild(svgEl("line", {
+        x1: PAD_L, y1: yy, x2: PAD_L + PLOT_W, y2: yy,
+        stroke: "#e2e5e9", "stroke-width": 1
+      }));
+      svg.appendChild(svgText(PAD_L - 44, yy + 3.5, shorten(nameOf(entry), 19), "stoplabel", "end"));
+      svg.appendChild(svgText(PAD_L - 10, yy + 3.5,
+        Math.round(posOut[i] * 100) + "%", "stoppct", "end"));
+    });
+
+    // Senkrechte Stundenlinien
+    var firstHour = Math.ceil(tMin / 3600) * 3600;
+    for (var hSec = firstHour; hSec <= tMax; hSec += 3600) {
+      svg.appendChild(svgEl("line", {
+        x1: x(hSec), y1: PAD_T, x2: x(hSec), y2: PAD_T + PLOT_H,
+        stroke: "#eceef1", "stroke-width": 1
+      }));
+      svg.appendChild(svgText(x(hSec), PAD_T + PLOT_H + 15, hhmm(hSec), "ax", "middle"));
+    }
+
+    // Rahmen
+    svg.appendChild(svgEl("rect", {
+      x: PAD_L, y: PAD_T, width: PLOT_W, height: PLOT_H,
+      fill: "none", stroke: "#ccd1d7", "stroke-width": 1
+    }));
+
+    // Betriebsende markieren, auch wenn danach noch Rückfahrten laufen
+    if (plan.endSec < tMax) {
+      svg.appendChild(svgEl("line", {
+        x1: x(plan.endSec), y1: PAD_T, x2: x(plan.endSec), y2: PAD_T + PLOT_H,
+        stroke: "#a45b00", "stroke-width": 1.5, "stroke-dasharray": "5,4"
+      }));
+      svg.appendChild(svgText(x(plan.endSec) - 5, PAD_T - 8, "Betriebsende", "endmark", "end"));
+    }
+
+    // Ein durchgehender Linienzug je Fahrzeug, in seiner Wagenfarbe
+    Object.keys(byVehicle).map(Number).sort(function (a, b) { return a - b; })
+      .forEach(function (vehicle) {
+        var points = byVehicle[vehicle].map(function (pt) {
+          return x(pt[0]).toFixed(1) + "," + y(pt[1]).toFixed(1);
+        }).join(" ");
+
+        svg.appendChild(svgEl("polyline", {
+          points: points, fill: "none", stroke: vehicleColor(vehicle),
+          "stroke-width": 2.4, "stroke-linejoin": "round", "stroke-linecap": "round"
+        }));
+      });
+
+    svg.appendChild(svgText(PAD_L, PAD_T - 8, "Uhrzeit →", "ax", "start"));
+    bildScroll.appendChild(svg);
+
+    for (var v = 1; v <= plan.vehicles; v++) {
+      var row = document.createElement("div");
+      row.className = "veh-row";
+      var swatch = document.createElement("i");
+      swatch.style.background = vehicleColor(v);
+      row.appendChild(swatch);
+      var name = document.createElement("span");
+      name.className = "veh-name";
+      name.textContent = "Fahrzeug " + v;
+      row.appendChild(name);
+      bildLegend.appendChild(row);
+    }
+
+    bildInfo.textContent = plan.vehicles + " " +
+      plural(plan.vehicles, "Fahrzeug", "Fahrzeuge") + "  ·  " +
+      plan.runs + " " + plural(plan.runs, "Umlauf", "Umläufe") + "  ·  " +
+      "0 % = " + nameOf(out[0]) + ", 100 % = " + nameOf(out[out.length - 1]) +
+      "  ·  Position aus kumulierter Fahrzeit";
   }
 
   /* ==================================================================
@@ -2607,8 +2896,11 @@
         runSeconds += (entry.minutes === null ? 0 : entry.minutes * 60) + entry.dwell;
       }
 
-      if (ui.dwell && document.activeElement !== ui.dwell) {
-        ui.dwell.value = String(entry.dwell);
+      if (ui.dwellMin && document.activeElement !== ui.dwellMin) {
+        ui.dwellMin.value = String(Math.floor(entry.dwell / 60));
+      }
+      if (ui.dwellSec && document.activeElement !== ui.dwellSec) {
+        ui.dwellSec.value = String(entry.dwell % 60);
       }
 
       if (ui.run) { ui.run.textContent = clock(runSeconds); }
@@ -2969,6 +3261,7 @@
     // Zusammenfassung und werden mit ihr neu gezeichnet.
     if (activeView === "schema") { renderSchema(); }
     if (activeView === "plan") { renderPlan(); }
+    if (activeView === "bild") { renderBild(); }
 
     printHead.textContent = "";
     var lineLabel = lineInput.value.trim();
@@ -3099,6 +3392,7 @@
   var viewList = document.getElementById("viewList");
   var viewSchema = document.getElementById("viewSchema");
   var viewPlan = document.getElementById("viewPlan");
+  var viewBild = document.getElementById("viewBild");
   var mapCard = document.getElementById("mapCard");
 
   function clearSheet() {
@@ -3123,7 +3417,8 @@
       list.textContent = "";
       clearSheet();
       entries().forEach(function (entry) { entry.ui = {}; });
-      if (activeView === "plan") { planBody.textContent = ""; }
+      if (activeView !== "plan") { planBody.textContent = ""; }
+      if (activeView !== "bild") { bildScroll.textContent = ""; }
     }
     refreshRows();
   }
@@ -3163,6 +3458,7 @@
     viewList.hidden = key !== "list";
     viewSchema.hidden = key !== "schema";
     viewPlan.hidden = key !== "plan";
+    viewBild.hidden = key !== "bild";
 
     renderBody();
     renderSummary();
@@ -3206,8 +3502,15 @@
 
   noTaktInput.addEventListener("change", renderSummary);
 
-  [opStartInput, opEndInput].forEach(function (input) {
-    input.addEventListener("input", renderSummary);
+  // Betriebszeit steht in Tagesfahrplan und Bildfahrplan; beide Paare
+  // bearbeiten denselben Wert und werden gegenseitig nachgezogen.
+  [[opStartInput, bildStartInput], [opEndInput, bildEndInput]].forEach(function (pair) {
+    pair.forEach(function (input, index) {
+      input.addEventListener("input", function () {
+        pair[1 - index].value = input.value;
+        renderSummary();
+      });
+    });
   });
 
   // Hebt die Wende an der Endhaltestelle genau um den fehlenden Betrag an.
