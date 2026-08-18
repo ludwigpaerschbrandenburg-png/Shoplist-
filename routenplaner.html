@@ -791,6 +791,149 @@
   svg.bild .stoppct { font-size: 9.5px; fill: var(--muted-2); }
   svg.bild .endmark { font-size: 10px; font-weight: 600; fill: var(--warn); }
 
+  /* ---------- Anschlüsse ---------- */
+
+  .conn-editor { border-bottom: 1px solid var(--line); }
+
+  .conn-stop {
+    padding: 6px 9px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .conn-stop:last-child { border-bottom: 0; }
+
+  .conn-stop > .head-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .conn-stop > .head-row .count {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--muted-2);
+    margin-right: auto;
+  }
+
+  .conn-row {
+    display: grid;
+    grid-template-columns: 130px minmax(90px, 1fr) 74px 74px 150px 26px;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+    padding-left: 2px;
+  }
+
+  .conn-row input,
+  .conn-row select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 2px 5px;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    min-width: 0;
+  }
+
+  .conn-row input:focus, .conn-row select:focus { outline: none; border-color: var(--accent); }
+  .conn-row input.num-in { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .conn-row .unit {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--muted-2);
+  }
+
+  .conn-row button {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--muted);
+  }
+
+  .conn-head {
+    display: grid;
+    grid-template-columns: 130px minmax(90px, 1fr) 74px 74px 150px 26px;
+    gap: 6px;
+    margin-top: 5px;
+    padding-left: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .conn-block { border-top: 1px solid var(--line); }
+
+  .conn-block > .cap {
+    padding: 6px 9px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .conn-block > .cap span { font-weight: 400; color: var(--muted-2); }
+
+  table.conn td.wait, table.conn th.conncol { width: 150px; }
+  table.conn td.wait { padding: 0; }
+  table.conn td:nth-child(2) { width: auto; }
+
+  table.conn td.wait > span {
+    display: block;
+    padding: 3px 8px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    border-left: 1px solid rgba(34, 39, 44, 0.10);
+  }
+
+  table.conn td.wait b { font-weight: 700; }
+
+  table.conn td.wait em {
+    font-style: normal;
+    font-size: 10px;
+    opacity: 0.8;
+    margin-left: 5px;
+  }
+
+  .w-bad  { background: #F4CCCC; color: #85200C; }
+  .w-tight{ background: #FFF2CC; color: #7F6000; }
+  .w-good { background: #D9EAD3; color: #274E13; }
+  .w-none { color: var(--muted-2); }
+
+  .conn-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 6px 9px;
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .conn-legend span.key {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .conn-legend i {
+    width: 13px;
+    height: 13px;
+    border-radius: 2px;
+    border: 1px solid rgba(34, 39, 44, 0.2);
+    display: inline-block;
+  }
+
   /* ---------- Zusammenfassung ---------- */
 
   .summary {
@@ -1019,7 +1162,7 @@
   @media print {
     body { background: #fff; font-size: 10.5px; }
     .planbar, .veh-legend, table.plan td.veh span, table.plan td.time,
-    .veh-row i, svg.bild {
+    .veh-row i, svg.bild, table.conn td.wait > span, .conn-legend i {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -1104,6 +1247,7 @@
         <button type="button" data-view="schema" aria-pressed="false">Schema</button>
         <button type="button" data-view="plan" aria-pressed="false">Tagesfahrplan</button>
         <button type="button" data-view="bild" aria-pressed="false">Bildfahrplan</button>
+        <button type="button" data-view="conn" aria-pressed="false">Anschlüsse</button>
       </div>
     </div>
   </div>
@@ -1211,6 +1355,27 @@
     <div class="veh-legend" id="bildLegend" hidden></div>
     <div class="empty" id="bildEmpty" hidden></div>
     <div class="bild-scroll" id="bildScroll"></div>
+  </div>
+
+  <!-- Anschlüsse: Umsteigebeziehungen je Haltestelle -->
+  <div class="table" id="viewConn" hidden>
+    <div class="planbar">
+      <label class="field">
+        Minimum
+        <input id="connMin" class="takt-in" type="number" min="0" step="1" value="3">
+        Min.
+      </label>
+      <label class="field">
+        Komfortabel ab
+        <input id="connGood" class="takt-in" type="number" min="0" step="1" value="8">
+        Min.
+      </label>
+      <span class="planinfo" id="connInfo"></span>
+    </div>
+
+    <div class="conn-editor" id="connEditor"></div>
+    <div class="empty" id="connEmpty" hidden></div>
+    <div id="connTables"></div>
   </div>
 
   <section class="summary" aria-live="polite">
@@ -1707,7 +1872,8 @@
       marker: null,
       popupInput: null,
       linkedTo: null,        // mit diesem Ort gleichgesetzt
-      unlinkedPos: null      // ursprüngliche Lage, für das Lösen
+      unlinkedPos: null,     // ursprüngliche Lage, für das Lösen
+      connections: []        // Anschlusslinien an diesem Ort
     };
 
     place.marker = L.marker([lat, lng], {
@@ -2334,6 +2500,12 @@
   var planEmpty = document.getElementById("planEmpty");
   var planTable = document.getElementById("planTable");
   var planInfo = document.getElementById("planInfo");
+  var connEditor = document.getElementById("connEditor");
+  var connTables = document.getElementById("connTables");
+  var connEmpty = document.getElementById("connEmpty");
+  var connInfo = document.getElementById("connInfo");
+  var connMinInput = document.getElementById("connMin");
+  var connGoodInput = document.getElementById("connGood");
   var opStartInput = document.getElementById("opStart");
   var opEndInput = document.getElementById("opEnd");
   var bildScroll = document.getElementById("bildScroll");
@@ -2484,6 +2656,93 @@
     if (!loopIsClosed(t)) {
       schemaHint.textContent = "Linie nicht geschlossen – oben treffen sich zwei verschiedene Orte.";
     }
+  }
+
+  /* ==================================================================
+     Anschlüsse
+
+     Eine Anschlusslinie wird durch Takt und Ankerminute beschrieben:
+     bei Takt 20 und Anker :15 fährt sie zu jeder Minute t mit
+     t ≡ 15 (mod 20), also :15, :35, :55.
+
+     Kommt ein Wagen meiner Linie an, zählt die nächste Abfahrt des
+     Anschlusses danach – die Fahrgäste steigen um. Fährt ein Wagen
+     meiner Linie ab, zählt die letzte Ankunft des Anschlusses davor –
+     die Fahrgäste sind mit ihm gekommen.
+     ================================================================== */
+
+  var nextConnId = 1;
+
+  function makeConnection() {
+    return {
+      id: nextConnId++,
+      name: "",
+      hint: "",
+      takt: 20,
+      anchor: 0,
+      rel: "both"          // "an" | "ab" | "both"
+    };
+  }
+
+  function connectionsOf(place) {
+    var resolved = resolvePlace(place);
+    if (!resolved.connections) { resolved.connections = []; }
+    return resolved.connections;
+  }
+
+  // Nächste (forward) bzw. letzte (rückwärts) Fahrt des Anschlusses.
+  function connectionTime(conn, seconds, forward) {
+    var taktSec = Math.round(conn.takt * 60);
+    if (!(taktSec > 0)) { return null; }
+
+    var anchorSec = Math.round(conn.anchor * 60);
+    var steps = (Math.round(seconds) - anchorSec) / taktSec;
+    var index = forward ? Math.ceil(steps) : Math.floor(steps);
+    return anchorSec + index * taktSec;
+  }
+
+  function waitClass(waitSeconds) {
+    var minimum = Math.max(0, parseInt(connMinInput.value, 10) || 0) * 60;
+    var good = Math.max(0, parseInt(connGoodInput.value, 10) || 0) * 60;
+    if (waitSeconds < minimum) { return "w-bad"; }
+    if (waitSeconds < good) { return "w-tight"; }
+    return "w-good";
+  }
+
+  // Alle Zeitpunkte meiner Linie an einem Ort, aus dem Tagesfahrplan.
+  function eventsAtPlace(place, plan) {
+    var events = [];
+    var target = resolvePlace(place);
+
+    plan.trips.forEach(function (trip) {
+      var list = trip.dir === "out" ? dirs.out.entries : dirs.back.entries;
+      var t = trip.time;
+
+      for (var i = 0; i < list.length; i++) {
+        if (i > 0) {
+          t += (list[i].minutes === null ? 0 : list[i].minutes * 60);
+        }
+        var arrival = t;
+        var departure = arrival + (i === 0 ? 0 : list[i].dwell);
+        var here = resolvePlace(list[i].place) === target;
+
+        if (here && i > 0) {
+          events.push({ time: arrival, kind: "an", dir: trip.dir, vehicle: trip.vehicle });
+        }
+        if (here && i < list.length - 1) {
+          events.push({ time: i === 0 ? trip.time : departure,
+                        kind: "ab", dir: trip.dir, vehicle: trip.vehicle });
+        }
+
+        if (i > 0 && i < list.length - 1) { t = departure; }
+      }
+    });
+
+    events.sort(function (a, b) {
+      if (a.time !== b.time) { return a.time - b.time; }
+      return a.kind === "an" ? -1 : 1;
+    });
+    return events;
   }
 
   /* ==================================================================
@@ -2907,6 +3166,327 @@
   }
 
   /* ==================================================================
+     Anschlüsse: Editor und Ergebnistabellen
+     ================================================================== */
+
+  // Orte in Reihenfolge der Hinfahrt, jeder Ort nur einmal.
+  function connPlaces() {
+    var seen = [];
+    var out = [];
+    dirs.out.entries.forEach(function (entry) {
+      var place = resolvePlace(entry.place);
+      if (seen.indexOf(place) === -1) { seen.push(place); out.push(place); }
+    });
+    return out;
+  }
+
+  // Kennung des Aufbaus: nur wenn sie sich ändert, wird der Editor neu
+  // gebaut - sonst verlöre das gerade bearbeitete Feld den Fokus.
+  function editorSignature() {
+    return connPlaces().map(function (place) {
+      return place.id + ":" + connectionsOf(place).map(function (c) { return c.id; }).join(",");
+    }).join("|");
+  }
+
+  var editorShape = null;
+
+  function labelledInput(parent, value, placeholder, numeric, onInput) {
+    var input = document.createElement("input");
+    input.type = "text";
+    input.value = value;
+    input.placeholder = placeholder;
+    if (numeric) { input.className = "num-in"; input.inputMode = "numeric"; }
+    input.addEventListener("input", function () { onInput(input.value); });
+    parent.appendChild(input);
+    return input;
+  }
+
+  function renderConnEditor() {
+    var signature = editorSignature();
+    if (signature === editorShape) { return; }
+    editorShape = signature;
+
+    connEditor.textContent = "";
+    var places = connPlaces();
+
+    if (places.length === 0) {
+      var hint = document.createElement("div");
+      hint.className = "conn-stop";
+      hint.textContent = "Noch keine Haltestellen – erst die Linie anlegen.";
+      connEditor.appendChild(hint);
+      return;
+    }
+
+    places.forEach(function (place) {
+      var list = connectionsOf(place);
+
+      var block = document.createElement("div");
+      block.className = "conn-stop";
+
+      var head = document.createElement("div");
+      head.className = "head-row";
+
+      var name = document.createElement("span");
+      name.textContent = place.name.trim() || place.fallback;
+      head.appendChild(name);
+
+      var count = document.createElement("span");
+      count.className = "count";
+      count.textContent = list.length === 0
+        ? "kein Anschluss"
+        : list.length + " " + plural(list.length, "Anschluss", "Anschlüsse");
+      head.appendChild(count);
+
+      var add = document.createElement("button");
+      add.type = "button";
+      add.textContent = "+ Anschluss";
+      add.addEventListener("click", function () {
+        list.push(makeConnection());
+        editorShape = null;
+        renderConnections();
+      });
+      head.appendChild(add);
+      block.appendChild(head);
+
+      if (list.length > 0) {
+        var header = document.createElement("div");
+        header.className = "conn-head";
+        ["Linie", "Richtung", "Takt", "ab Min.", "gilt für", ""].forEach(function (text) {
+          var cell = document.createElement("span");
+          cell.textContent = text;
+          header.appendChild(cell);
+        });
+        block.appendChild(header);
+      }
+
+      list.forEach(function (conn, index) {
+        var row = document.createElement("div");
+        row.className = "conn-row";
+
+        labelledInput(row, conn.name, "z. B. Linie 91", false, function (value) {
+          conn.name = value;
+          renderConnTables();
+        });
+
+        labelledInput(row, conn.hint, "z. B. Ri. Stadt", false, function (value) {
+          conn.hint = value;
+          renderConnTables();
+        });
+
+        labelledInput(row, String(conn.takt), "20", true, function (value) {
+          var parsed = parseFloat(String(value).replace(",", "."));
+          conn.takt = (isNaN(parsed) || parsed <= 0) ? 0 : parsed;
+          renderConnTables();
+        });
+
+        labelledInput(row, String(conn.anchor), "0", true, function (value) {
+          var parsed = parseInt(String(value).replace(":", ""), 10);
+          conn.anchor = (isNaN(parsed) || parsed < 0) ? 0 : parsed % 60;
+          renderConnTables();
+        });
+
+        var select = document.createElement("select");
+        [["both", "beide Richtungen"], ["an", "nur meine Ankünfte"], ["ab", "nur meine Abfahrten"]]
+          .forEach(function (pair) {
+            var option = document.createElement("option");
+            option.value = pair[0];
+            option.textContent = pair[1];
+            if (conn.rel === pair[0]) { option.selected = true; }
+            select.appendChild(option);
+          });
+        select.addEventListener("change", function () {
+          conn.rel = select.value;
+          renderConnTables();
+        });
+        row.appendChild(select);
+
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "✕";
+        remove.title = "Anschluss entfernen";
+        remove.addEventListener("click", function () {
+          list.splice(index, 1);
+          editorShape = null;
+          renderConnections();
+        });
+        row.appendChild(remove);
+
+        block.appendChild(row);
+      });
+
+      connEditor.appendChild(block);
+    });
+  }
+
+  function connLabel(conn, index) {
+    var name = conn.name.trim() || ("Anschluss " + (index + 1));
+    return conn.hint.trim() ? name + " " + conn.hint.trim() : name;
+  }
+
+  function renderConnTables() {
+    connTables.textContent = "";
+
+    var plan = buildSchedule();
+    if (plan.error) {
+      connEmpty.textContent = plan.error;
+      connEmpty.hidden = false;
+      connInfo.textContent = "";
+      return;
+    }
+
+    var withConns = connPlaces().filter(function (place) {
+      return connectionsOf(place).length > 0;
+    });
+
+    if (withConns.length === 0) {
+      connEmpty.textContent = "Noch keine Anschlüsse hinterlegt – oben je Haltestelle anlegen.";
+      connEmpty.hidden = false;
+      connInfo.textContent = "";
+      return;
+    }
+
+    connEmpty.hidden = true;
+
+    var total = 0;
+    var bad = 0;
+
+    withConns.forEach(function (place) {
+      var list = connectionsOf(place);
+      var events = eventsAtPlace(place, plan);
+
+      var block = document.createElement("div");
+      block.className = "conn-block";
+
+      var cap = document.createElement("div");
+      cap.className = "cap";
+      cap.appendChild(document.createTextNode(place.name.trim() || place.fallback));
+      var sub = document.createElement("span");
+      sub.textContent = "  ·  " + events.length + " eigene " +
+        plural(events.length, "Zeit", "Zeiten") + "  ·  " +
+        list.length + " " + plural(list.length, "Anschluss", "Anschlüsse");
+      cap.appendChild(sub);
+      block.appendChild(cap);
+
+      var table = document.createElement("table");
+      table.className = "sheet conn";
+
+      var thead = document.createElement("thead");
+      var headRow = document.createElement("tr");
+      ["Zeit", "Ereignis", "Fahrzeug"].forEach(function (text) {
+        var th = document.createElement("th");
+        th.textContent = text;
+        headRow.appendChild(th);
+      });
+      list.forEach(function (conn, index) {
+        var th = document.createElement("th");
+        th.className = "r conncol";
+        th.textContent = connLabel(conn, index) +
+          (conn.takt > 0 ? " · " + num(conn.takt) + "' ab :" +
+            (conn.anchor < 10 ? "0" : "") + conn.anchor : " · ohne Takt");
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      var tbody = document.createElement("tbody");
+
+      events.forEach(function (event) {
+        var tr = document.createElement("tr");
+
+        var time = document.createElement("td");
+        time.className = "time";
+        time.style.borderLeftColor = vehicleColor(event.vehicle);
+        time.textContent = hhmm(event.time);
+        tr.appendChild(time);
+
+        var kind = document.createElement("td");
+        var kindSpan = document.createElement("span");
+        kindSpan.className = event.dir === "out" ? "dir-out" : "dir-back";
+        kindSpan.textContent = (event.kind === "an" ? "Ankunft " : "Abfahrt ") +
+          (event.dir === "out" ? "Hinfahrt" : "Rückfahrt");
+        kind.appendChild(kindSpan);
+        tr.appendChild(kind);
+
+        var veh = document.createElement("td");
+        veh.className = "veh";
+        var tag = document.createElement("span");
+        tag.style.background = vehicleColor(event.vehicle);
+        tag.textContent = String(event.vehicle);
+        veh.appendChild(tag);
+        tr.appendChild(veh);
+
+        list.forEach(function (conn) {
+          var cell = document.createElement("td");
+          cell.className = "wait";
+          var box = document.createElement("span");
+
+          var relevant = conn.rel === "both" ||
+            (conn.rel === "an" && event.kind === "an") ||
+            (conn.rel === "ab" && event.kind === "ab");
+
+          if (!relevant || !(conn.takt > 0)) {
+            box.className = "w-none";
+            box.textContent = relevant ? "kein Takt" : "–";
+          } else {
+            var forward = event.kind === "an";
+            var connSec = connectionTime(conn, event.time, forward);
+            var wait = forward ? connSec - event.time : event.time - connSec;
+
+            box.className = waitClass(wait);
+            var strong = document.createElement("b");
+            strong.textContent = Math.round(wait / 60) + " Min";
+            box.appendChild(strong);
+            var when = document.createElement("em");
+            when.textContent = (forward ? " ab " : " an ") + hhmm(connSec);
+            box.appendChild(when);
+
+            // Zur Einordnung: wie lange wäre es bis zur übernächsten Fahrt
+            var nachher = connectionTime(conn, event.time + (forward ? 1 : -1), forward);
+            box.title = (forward ? "Anschluss fährt " + hhmm(connSec) : "Anschluss kommt " + hhmm(connSec)) +
+              " · nächste Gelegenheit " +
+              hhmm(connSec + (forward ? conn.takt * 60 : -conn.takt * 60));
+
+            total++;
+            if (box.className === "w-bad") { bad++; }
+          }
+
+          cell.appendChild(box);
+          tr.appendChild(cell);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      block.appendChild(table);
+      connTables.appendChild(block);
+    });
+
+    var legend = document.createElement("div");
+    legend.className = "conn-legend";
+    [["w-bad", "unter Minimum"], ["w-tight", "knapp"], ["w-good", "komfortabel"]]
+      .forEach(function (pair) {
+        var key = document.createElement("span");
+        key.className = "key";
+        var swatch = document.createElement("i");
+        swatch.className = pair[0];
+        key.appendChild(swatch);
+        key.appendChild(document.createTextNode(pair[1]));
+        legend.appendChild(key);
+      });
+    connTables.insertBefore(legend, connTables.firstChild);
+
+    connInfo.textContent = withConns.length + " " +
+      plural(withConns.length, "Haltestelle", "Haltestellen") + " mit Anschluss  ·  " +
+      total + " geprüfte Übergänge  ·  " + bad + " unter dem Minimum";
+  }
+
+  function renderConnections() {
+    renderConnEditor();
+    renderConnTables();
+  }
+
+  /* ==================================================================
      Zeilen auffrischen, ohne die Tabelle neu zu bauen
      (damit bleibt der Fokus im gerade bearbeiteten Feld erhalten)
      ================================================================== */
@@ -3297,6 +3877,7 @@
     // Zusammenfassung und werden mit ihr neu gezeichnet.
     if (activeView === "schema") { renderSchema(); }
     if (activeView === "plan") { renderPlan(); }
+    if (activeView === "conn") { renderConnections(); }
     if (activeView === "bild") { renderBild(); }
 
     printHead.textContent = "";
@@ -3428,6 +4009,7 @@
   var viewList = document.getElementById("viewList");
   var viewSchema = document.getElementById("viewSchema");
   var viewPlan = document.getElementById("viewPlan");
+  var viewConn = document.getElementById("viewConn");
   var viewBild = document.getElementById("viewBild");
   var mapCard = document.getElementById("mapCard");
 
@@ -3455,6 +4037,9 @@
       entries().forEach(function (entry) { entry.ui = {}; });
       if (activeView !== "plan") { planBody.textContent = ""; }
       if (activeView !== "bild") { bildScroll.textContent = ""; }
+      if (activeView !== "conn") { connTables.textContent = ""; }
+      // Beim Betreten der Anschlussansicht den Editor sicher neu aufbauen.
+      if (activeView === "conn") { editorShape = null; }
     }
     refreshRows();
   }
@@ -3495,6 +4080,7 @@
     viewSchema.hidden = key !== "schema";
     viewPlan.hidden = key !== "plan";
     viewBild.hidden = key !== "bild";
+    viewConn.hidden = key !== "conn";
 
     renderBody();
     renderSummary();
@@ -3537,6 +4123,10 @@
   });
 
   noTaktInput.addEventListener("change", renderSummary);
+
+  [connMinInput, connGoodInput].forEach(function (input) {
+    input.addEventListener("input", renderConnTables);
+  });
 
   // Betriebszeit steht in Tagesfahrplan und Bildfahrplan; beide Paare
   // bearbeiten denselben Wert und werden gegenseitig nachgezogen.
