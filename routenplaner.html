@@ -30,8 +30,12 @@
     --warn-line: #ddd0ab;
     --r: 3px;
 
+    --dir-out: #3c5a78;      /* Hinfahrt  – gedecktes Stahlblau */
+    --dir-back: #8a5230;     /* Rückfahrt – gedecktes Rostbraun */
+    --stand: #7c848c;        /* Wende- und Standzeiten */
+
     /* # | Haltestelle | Koordinaten | Aufenthalt | Rolle | Aktion */
-    --grid: 24px minmax(110px, 1fr) 108px 94px 46px 112px;
+    --grid: 24px minmax(110px, 1fr) 108px 94px 46px 142px;
   }
 
   * { box-sizing: border-box; }
@@ -586,6 +590,61 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ---------- Schemaansicht ---------- */
+
+  .schema-wrap { padding: 10px 9px 14px; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    padding: 0 0 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .legend span.key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend i {
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .legend i.out   { background: var(--dir-out); }
+  .legend i.back  { background: var(--dir-back); }
+  .legend i.stand { background: var(--stand); }
+
+  svg.schema {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  svg.schema text {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  svg.schema .stopname { font-size: 12px; font-weight: 600; fill: var(--text); }
+  svg.schema .dwell-lbl { font-size: 10px; fill: var(--muted-2); }
+  svg.schema .leg-lbl { font-size: 11px; font-weight: 600; }
+  svg.schema .leg-lbl.out  { fill: var(--dir-out); }
+  svg.schema .leg-lbl.back { fill: var(--dir-back); }
+  svg.schema .leg-lbl.open { fill: var(--warn); }
+  svg.schema .node-nr { font-size: 10px; font-weight: 700; fill: #fff; }
+  svg.schema .wende-lbl { font-size: 11px; font-weight: 600; fill: var(--text); }
+  svg.schema .wende-sub { font-size: 10px; fill: var(--muted); }
+
   /* ---------- Zusammenfassung ---------- */
 
   .summary {
@@ -709,6 +768,34 @@
   }
 
   .taktrow .calc { margin-top: 0; }
+
+  .taktrow .tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .toggle input { margin: 0; }
+
+  input.wende-in {
+    width: 62px;
+    text-align: right;
+  }
+
+  .linked-pin { box-shadow: 0 0 0 1px var(--pin-start), 0 0 0 3px rgba(63, 92, 74, 0.35); }
+
+  button.linkbtn[aria-pressed="true"] { color: var(--pin-start); border-color: #a9bfae; }
 
   .umlauf-empty {
     color: var(--muted);
@@ -849,6 +936,7 @@
       <div class="seg" id="segView" role="group" aria-label="Ansicht">
         <button type="button" data-view="map" aria-pressed="true">Karte</button>
         <button type="button" data-view="list" aria-pressed="false">Liste</button>
+        <button type="button" data-view="schema" aria-pressed="false">Schema</button>
       </div>
     </div>
   </div>
@@ -898,6 +986,19 @@
     </table>
   </div>
 
+  <!-- Schemaansicht: die ganze Linie als geschlossener Kreislauf -->
+  <div class="table" id="viewSchema" hidden>
+    <div class="schema-wrap">
+      <div class="legend">
+        <span class="key"><i class="out"></i>Hinfahrt</span>
+        <span class="key"><i class="back"></i>Rückfahrt</span>
+        <span class="key"><i class="stand"></i>Wende</span>
+        <span id="schemaHint"></span>
+      </div>
+      <div id="schemaBox"></div>
+    </div>
+  </div>
+
   <section class="summary" aria-live="polite">
     <div class="head">Zusammenfassung</div>
     <div class="body">
@@ -938,9 +1039,9 @@
               <td>–</td>
               <td>–</td>
               <td class="in">
-                <input id="wendeEnd" class="wende-in" type="number" min="0" step="1" value="5"
-                       aria-label="Wendezeit an der Endhaltestelle in Minuten">
-                <span>Min.</span>
+                <input id="wendeEnd" class="wende-in" type="text" inputmode="numeric" value="5:00"
+                       aria-label="Wendezeit an der Endhaltestelle, Minuten:Sekunden">
+                <span>mm:ss</span>
               </td>
               <td id="cWendeEnd"></td>
             </tr>
@@ -956,9 +1057,9 @@
               <td>–</td>
               <td>–</td>
               <td class="in">
-                <input id="wendeStart" class="wende-in" type="number" min="0" step="1" value="5"
-                       aria-label="Wendezeit an der Starthaltestelle in Minuten">
-                <span>Min.</span>
+                <input id="wendeStart" class="wende-in" type="text" inputmode="numeric" value="5:00"
+                       aria-label="Wendezeit an der Starthaltestelle, Minuten:Sekunden">
+                <span>mm:ss</span>
               </td>
               <td id="cWendeStart"></td>
             </tr>
@@ -983,6 +1084,13 @@
             Min.
           </label>
           <div class="calc" id="calcVehicles"></div>
+          <div class="tools">
+            <button id="btnTaktrein" type="button" disabled>Automatisch taktrein machen</button>
+            <label class="toggle">
+              <input id="noTakt" type="checkbox">
+              Kein Takt-Ziel
+            </label>
+          </div>
         </div>
 
         <div class="warn" id="warnTakt" hidden></div>
@@ -1137,8 +1245,39 @@
     return 2 * R * Math.asin(Math.sqrt(h));
   }
 
+  // Eine verbundene Haltestelle zeigt auf den Ort, mit dem sie
+  // gleichgesetzt wurde. Name und Identität kommen von dort.
+  function resolvePlace(place) {
+    return (place && place.linkedTo) ? place.linkedTo : place;
+  }
+
+  function samePlace(a, b) {
+    return !!a && !!b && resolvePlace(a) === resolvePlace(b);
+  }
+
   function nameOf(entry) {
-    return entry.place.name.trim() || entry.place.fallback;
+    var place = resolvePlace(entry.place);
+    return place.name.trim() || place.fallback;
+  }
+
+  // Zeitangaben als mm:ss (auch h:mm:ss); eine nackte Zahl gilt als Minuten.
+  function parseClock(raw) {
+    var text = String(raw).trim().replace(",", ".");
+    if (!text) { return 0; }
+
+    if (text.indexOf(":") > -1) {
+      var parts = text.split(":");
+      var seconds = 0;
+      for (var i = 0; i < parts.length; i++) {
+        var value = parseFloat(parts[i]);
+        if (isNaN(value) || value < 0) { value = 0; }
+        seconds = seconds * 60 + value;
+      }
+      return Math.round(seconds);
+    }
+
+    var minutes = parseFloat(text);
+    return (isNaN(minutes) || minutes < 0) ? 0 : Math.round(minutes * 60);
   }
 
   function busFactor() {
@@ -1338,7 +1477,9 @@
       lat: lat,
       lng: lng,
       marker: null,
-      popupInput: null
+      popupInput: null,
+      linkedTo: null,        // mit diesem Ort gleichgesetzt
+      unlinkedPos: null      // ursprüngliche Lage, für das Lösen
     };
 
     place.marker = L.marker([lat, lng], {
@@ -1409,6 +1550,36 @@
     renderAll();
   }
 
+  // Setzt die letzte Rückfahrt-Haltestelle exakt auf die Starthaltestelle
+  // der Hinfahrt und markiert sie als denselben Ort, ohne dass von Hand
+  // ein zweiter, fast deckungsgleicher Marker gesetzt werden muss.
+  function linkToStart(place) {
+    var start = dirs.out.entries.length ? dirs.out.entries[0].place : null;
+    if (!start || start === place) { return; }
+
+    place.unlinkedPos = { lat: place.lat, lng: place.lng };
+    place.linkedTo = start;
+    place.lat = start.lat;
+    place.lng = start.lng;
+    place.marker.setLatLng([place.lat, place.lng]);
+
+    renderAll();
+  }
+
+  function unlinkFromStart(place) {
+    if (!place.linkedTo) { return; }
+
+    if (place.unlinkedPos) {
+      place.lat = place.unlinkedPos.lat;
+      place.lng = place.unlinkedPos.lng;
+      place.marker.setLatLng([place.lat, place.lng]);
+    }
+    place.linkedTo = null;
+    place.unlinkedPos = null;
+
+    renderAll();
+  }
+
   function clearAll() {
     places.forEach(function (place) { map.removeLayer(place.marker); });
     places = [];
@@ -1449,18 +1620,24 @@
 
   // Der Name gehört dem Ort, gilt also in beiden Richtungen.
   function setName(place, value, source) {
+    place = resolvePlace(place);
     place.name = value;
 
     if (place.popupInput && place.popupInput !== source) { place.popupInput.value = value; }
 
-    var container = activeView === "map" ? viewMap : viewList;
-    var field = container.querySelector('input.name[data-place="' + place.id + '"]');
-    if (field && field !== source) { field.value = value; }
-
-    var index = entries().findIndex(function (e) { return e.place === place; });
-    if (index > -1 && place.marker.getTooltip()) {
-      place.marker.setTooltipContent((index + 1) + ". " + (place.name.trim() || "ohne Namen"));
+    // Ein verbundener Ort trägt denselben Namen, also alle Felder mitziehen.
+    var fields = document.querySelectorAll('input.name[data-place="' + place.id + '"]');
+    for (var f = 0; f < fields.length; f++) {
+      if (fields[f] !== source) { fields[f].value = value; }
     }
+
+    var label = place.name.trim() || "ohne Namen";
+    entries().forEach(function (entry, i) {
+      if (resolvePlace(entry.place) !== place) { return; }
+      if (entry.place.marker.getTooltip()) {
+        entry.place.marker.setTooltipContent((i + 1) + ". " + label);
+      }
+    });
 
     refreshRows();
     renderSummary();
@@ -1470,10 +1647,11 @@
      Karte zeichnen
      ================================================================== */
 
-  function pinIcon(position, total) {
+  function pinIcon(position, total, linked) {
     var role = position === 0
       ? " is-start"
       : (position === total - 1 && total > 1 ? " is-end" : "");
+    if (linked) { role += " linked-pin"; }
 
     return L.divIcon({
       className: "",
@@ -1508,9 +1686,9 @@
   function renderMarkers() {
     var list = entries();
     list.forEach(function (entry, i) {
-      entry.place.marker.setIcon(pinIcon(i, list.length));
+      entry.place.marker.setIcon(pinIcon(i, list.length, !!entry.place.linkedTo));
 
-      var label = (i + 1) + ". " + (entry.place.name.trim() || "ohne Namen");
+      var label = (i + 1) + ". " + (resolvePlace(entry.place).name.trim() || "ohne Namen");
       if (entry.place.marker.getTooltip()) {
         entry.place.marker.setTooltipContent(label);
       } else {
@@ -1539,14 +1717,15 @@
      ================================================================== */
 
   function nameField(entry) {
+    var place = resolvePlace(entry.place);
     var input = document.createElement("input");
     input.className = "name";
     input.type = "text";
-    input.value = entry.place.name;
+    input.value = place.name;
     input.placeholder = "Name der Haltestelle";
-    input.setAttribute("data-place", String(entry.place.id));
+    input.setAttribute("data-place", String(place.id));
     input.setAttribute("aria-label", "Name der Haltestelle");
-    input.addEventListener("input", function () { setName(entry.place, input.value, input); });
+    input.addEventListener("input", function () { setName(place, input.value, input); });
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { input.blur(); }
     });
@@ -1715,6 +1894,26 @@
     actions.appendChild(iconButton("✕", "Haltestelle in beiden Richtungen löschen", false, function () {
       removePlace(entry.place);
     }));
+
+    // Nur am Ende der Rückfahrt und nur, wenn dort nicht ohnehin schon
+    // der Startort steht: Linie ausdrücklich schließen.
+    var startPlace = dirs.out.entries.length ? dirs.out.entries[0].place : null;
+    if (activeDir === "back" && isEnd && startPlace && entry.place !== startPlace) {
+      var linked = !!entry.place.linkedTo;
+      var link = iconButton(linked ? "◆" : "◇",
+        linked
+          ? "Verbindung mit " + placeName(startPlace) + " lösen"
+          : "Mit Starthaltestelle " + placeName(startPlace) + " verbinden",
+        false,
+        function () {
+          if (entry.place.linkedTo) { unlinkFromStart(entry.place); }
+          else { linkToStart(entry.place); }
+        });
+      link.className = "linkbtn";
+      link.setAttribute("aria-pressed", linked ? "true" : "false");
+      actions.appendChild(link);
+    }
+
     li.appendChild(actions);
 
     return li;
@@ -1872,6 +2071,156 @@
   }
 
   /* ==================================================================
+     Schemaansicht: die ganze Linie als geschlossener Kreislauf
+
+     Links die Hinfahrt von oben nach unten, rechts die Rückfahrt von
+     unten nach oben, dazwischen an beiden Enden ein Wendeknoten.
+     ================================================================== */
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  // Als Präsentationsattribut werden feste Farbwerte gesetzt; die
+  // CSS-Variablen gelten nur für die per Stylesheet gestalteten Texte.
+  var SCHEMA_COLORS = {
+    out: "#3c5a78",
+    back: "#8a5230",
+    stand: "#7c848c",
+    panel: "#ffffff",
+    line: "#ccd1d7"
+  };
+  var schemaBox = document.getElementById("schemaBox");
+  var schemaHint = document.getElementById("schemaHint");
+
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      el.setAttribute(key, String(attrs[key]));
+    });
+    return el;
+  }
+
+  function svgText(x, y, text, className, anchor) {
+    var el = svgEl("text", { x: x, y: y, class: className, "text-anchor": anchor || "start" });
+    el.textContent = text;
+    return el;
+  }
+
+  function shorten(text, max) {
+    return text.length > max ? text.slice(0, max - 1) + "…" : text;
+  }
+
+  function legLabel(entry) {
+    return entry.minutes === null ? "offen" : num(entry.minutes) + " Min.";
+  }
+
+  function renderSchema() {
+    schemaBox.textContent = "";
+    schemaHint.textContent = "";
+
+    var out = dirs.out.entries;
+    var back = dirs.back.entries;
+
+    if (out.length < 2 || back.length < 2) {
+      schemaHint.textContent = "Für das Schema braucht es Hin- und Rückfahrt mit je mindestens zwei Haltestellen.";
+      return;
+    }
+
+    var ROW = 58, X1 = 262, X2 = 528, W = 800;
+    var yTop = 44;                                   // Wendeknoten oben
+    var y0 = yTop + 62;                              // erste Haltestellenzeile
+    var rows = Math.max(out.length, back.length);
+    var yBottom = y0 + (rows - 1) * ROW + 62;        // Wendeknoten unten
+    var H = yBottom + 44;
+
+    var svg = svgEl("svg", {
+      class: "schema",
+      viewBox: "0 0 " + W + " " + H,
+      role: "img",
+      "aria-label": "Schematische Darstellung der Linie als Umlauf"
+    });
+
+    // Pfeilspitzen je Richtung
+    var defs = svgEl("defs", {});
+    [["arrow-out", SCHEMA_COLORS.out], ["arrow-back", SCHEMA_COLORS.back],
+     ["arrow-stand", SCHEMA_COLORS.stand]].forEach(function (pair) {
+      var marker = svgEl("marker", {
+        id: pair[0], viewBox: "0 0 10 10", refX: 8, refY: 5,
+        markerWidth: 6, markerHeight: 6, orient: "auto"
+      });
+      marker.appendChild(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: pair[1] }));
+      defs.appendChild(marker);
+    });
+    svg.appendChild(defs);
+
+    var yOut = function (i) { return y0 + i * ROW; };
+    var yBack = function (j) { return y0 + (back.length - 1 - j) * ROW; };
+
+    function rail(entriesList, x, yFor, colorVar, marker, cls, anchor, nameX, labelX, labelAnchor) {
+      for (var i = 0; i < entriesList.length - 1; i++) {
+        var ya = yFor(i), yb = yFor(i + 1);
+        var step = yb > ya ? 1 : -1;      // Hinfahrt nach unten, Rückfahrt nach oben
+        svg.appendChild(svgEl("line", {
+          x1: x, y1: ya + 12 * step, x2: x, y2: yb - 12 * step,
+          stroke: colorVar, "stroke-width": 2.5, "marker-end": "url(#" + marker + ")"
+        }));
+        svg.appendChild(svgText(labelX, (ya + yb) / 2 + 4,
+          legLabel(entriesList[i + 1]),
+          "leg-lbl " + cls + (entriesList[i + 1].minutes === null ? " open" : ""),
+          labelAnchor));
+      }
+
+      entriesList.forEach(function (entry, i) {
+        var y = yFor(i);
+        svg.appendChild(svgEl("circle", { cx: x, cy: y, r: 10, fill: colorVar }));
+        svg.appendChild(svgText(x, y + 3.5, String(i + 1), "node-nr", "middle"));
+        svg.appendChild(svgText(nameX, y - 1, shorten(nameOf(entry), 24), "stopname", anchor));
+        svg.appendChild(svgText(nameX, y + 12,
+          "Aufenthalt " + entry.dwell + " s" + (i === 0 ? " (zählt hier nicht)" : ""),
+          "dwell-lbl", anchor));
+      });
+    }
+
+    rail(out,  X1, yOut,  SCHEMA_COLORS.out,  "arrow-out",  "out",
+         "end",   X1 - 24, X1 + 14, "start");
+    rail(back, X2, yBack, SCHEMA_COLORS.back, "arrow-back", "back",
+         "start", X2 + 24, X2 - 14, "end");
+
+    // Wendeknoten mit den Verbindungen zwischen den beiden Strängen
+    function wende(y, fromX, toX, fromY, toY, label, seconds) {
+      svg.appendChild(svgEl("path", {
+        d: "M " + fromX + " " + fromY + " L " + fromX + " " + y +
+           " L " + toX + " " + y + " L " + toX + " " + toY,
+        fill: "none", stroke: SCHEMA_COLORS.stand, "stroke-width": 2,
+        "stroke-dasharray": "6,4", "marker-end": "url(#arrow-stand)"
+      }));
+
+      var midX = (X1 + X2) / 2;
+      svg.appendChild(svgEl("rect", {
+        x: midX - 96, y: y - 17, width: 192, height: 34, rx: 3,
+        fill: SCHEMA_COLORS.panel, stroke: SCHEMA_COLORS.line
+      }));
+      svg.appendChild(svgText(midX, y - 2, label, "wende-lbl", "middle"));
+      svg.appendChild(svgText(midX, y + 11, "Wendezeit " + clock(seconds), "wende-sub", "middle"));
+    }
+
+    var t = terminals();
+
+    // unten: Ende der Hinfahrt -> Beginn der Rückfahrt
+    wende(yBottom, X1, X2, yOut(out.length - 1) + 12, yBack(0) + 12,
+          "Wende " + placeName(t.end), wendeSeconds(wendeEndInput));
+
+    // oben: Ende der Rückfahrt -> Beginn der Hinfahrt
+    wende(yTop, X2, X1, yBack(back.length - 1) - 12, yOut(0) - 12,
+          "Wende " + placeName(t.start), wendeSeconds(wendeStartInput));
+
+    schemaBox.appendChild(svg);
+
+    if (!loopIsClosed(t)) {
+      schemaHint.textContent = "Linie nicht geschlossen – oben treffen sich zwei verschiedene Orte.";
+    }
+  }
+
+  /* ==================================================================
      Zeilen auffrischen, ohne die Tabelle neu zu bauen
      (damit bleibt der Fokus im gerade bearbeiteten Feld erhalten)
      ================================================================== */
@@ -2013,6 +2362,8 @@
   var calcUmlaufEl = document.getElementById("calcUmlauf");
   var calcVehiclesEl = document.getElementById("calcVehicles");
   var warnTakt = document.getElementById("warnTakt");
+  var btnTaktrein = document.getElementById("btnTaktrein");
+  var noTaktInput = document.getElementById("noTakt");
   var warnLoop = document.getElementById("warnLoop");
 
   var cells = {};
@@ -2039,7 +2390,8 @@
   var printHead = document.getElementById("printHead");
 
   function placeName(place) {
-    return place ? (place.name.trim() || place.fallback) : "–";
+    var resolved = resolvePlace(place);
+    return resolved ? (resolved.name.trim() || resolved.fallback) : "–";
   }
 
   // Endpunkte beider Richtungen. Bei einer geschlossenen Linie ist der
@@ -2057,12 +2409,11 @@
 
   function loopIsClosed(t) {
     if (!t.start || !t.end || !t.backStart || !t.backEnd) { return false; }
-    return t.backStart === t.end && t.backEnd === t.start;
+    return samePlace(t.backStart, t.end) && samePlace(t.backEnd, t.start);
   }
 
-  function minutesFromInput(input) {
-    var value = parseFloat(String(input.value).trim().replace(",", "."));
-    return (isNaN(value) || value < 0) ? 0 : value;
+  function wendeSeconds(input) {
+    return parseClock(input.value);
   }
 
   function taktMinutes() {
@@ -2100,10 +2451,8 @@
     var t = terminals();
     var closed = loopIsClosed(t);
 
-    var wendeEndMin = minutesFromInput(wendeEndInput);
-    var wendeStartMin = minutesFromInput(wendeStartInput);
-    var wendeEndSec = wendeEndMin * 60;
-    var wendeStartSec = wendeStartMin * 60;
+    var wendeEndSec = wendeSeconds(wendeEndInput);
+    var wendeStartSec = wendeSeconds(wendeStartInput);
 
     var umlaufSec = Math.round(tOut.totalSeconds + wendeEndSec +
                                tBack.totalSeconds + wendeStartSec);
@@ -2156,18 +2505,23 @@
 
     equation(calcUmlaufEl, "Umlaufzeit", [
       clock(tOut.totalSeconds) + " (Hinfahrt)",
-      num(wendeEndMin) + " Min (Wende " + placeName(t.end) + ")",
+      clock(wendeEndSec) + " (Wende " + placeName(t.end) + ")",
       clock(tBack.totalSeconds) + " (Rückfahrt)",
-      num(wendeStartMin) + " Min (Wende " + placeName(t.start) + ")"
+      clock(wendeStartSec) + " (Wende " + placeName(t.start) + ")"
     ], clock(umlaufSec));
 
     renderVehicles(umlaufSec, wendeEndSec + wendeStartSec);
   }
 
+  var taktGap = 0;      // Sekunden, die bis zum glatten Takt fehlen
+
   function renderVehicles(umlaufSec, wendeTotalSec) {
     var takt = taktMinutes();
+    var quiet = noTaktInput.checked;
+    taktGap = 0;
 
     if (takt <= 0) {
+      btnTaktrein.disabled = true;
       calcVehiclesEl.textContent = "";
       var hint = document.createElement("span");
       hint.className = "lead";
@@ -2198,12 +2552,21 @@
     var rest = umlaufSec % taktSec;
     if (rest === 0 || umlaufSec === 0) {
       warnTakt.hidden = true;
+      btnTaktrein.disabled = true;
       return;
     }
 
     var covered = vehicles * taktSec;
     var buffer = covered - umlaufSec;
     var fullTakte = Math.floor(umlaufSec / taktSec);
+
+    taktGap = buffer;
+    btnTaktrein.disabled = quiet;
+
+    if (quiet) {
+      warnTakt.hidden = true;
+      return;
+    }
 
     // Kürzen geht nur, soweit in den Wendezeiten überhaupt so viel steht.
     var canShorten = wendeTotalSec >= rest;
@@ -2231,6 +2594,10 @@
 
     renderUmlauf(tOut, tBack);
 
+    // Das Schema zeigt Fahrzeiten, Aufenthalte und Wendezeiten, hängt also
+    // an denselben Werten wie die Zusammenfassung.
+    if (activeView === "schema") { renderSchema(); }
+
     printHead.textContent = "";
     var lineLabel = lineInput.value.trim();
     printHead.appendChild(document.createTextNode(
@@ -2248,7 +2615,7 @@
     btnClear.disabled = places.length === 0;
     btnMirror.hidden = activeDir !== "back";
     btnMirror.disabled = dirs.out.entries.length === 0;
-    btnPrint.hidden = activeView !== "list";
+    btnPrint.hidden = activeView === "map";
     mapHint.hidden = n > 0;
 
     // Routing-Zähler beider Richtungen für die Statuszeile
@@ -2358,6 +2725,7 @@
 
   var viewMap = document.getElementById("viewMap");
   var viewList = document.getElementById("viewList");
+  var viewSchema = document.getElementById("viewSchema");
   var mapCard = document.getElementById("mapCard");
 
   function clearSheet() {
@@ -2367,12 +2735,20 @@
   }
 
   function renderBody() {
+    // Nur die aktive Ansicht steht im DOM; die anderen werden geleert,
+    // damit keine doppelten Felder mit gleicher Kennung zurückbleiben.
     if (activeView === "map") {
       clearSheet();
+      schemaBox.textContent = "";
       renderStopTable();
+    } else if (activeView === "list") {
+      list.textContent = "";
+      schemaBox.textContent = "";
+      renderSheet();
     } else {
       list.textContent = "";
-      renderSheet();
+      clearSheet();
+      entries().forEach(function (entry) { entry.ui = {}; });
     }
     refreshRows();
   }
@@ -2410,6 +2786,7 @@
     mapCard.hidden = key !== "map";
     viewMap.hidden = key !== "map";
     viewList.hidden = key !== "list";
+    viewSchema.hidden = key !== "schema";
 
     renderBody();
     renderSummary();
@@ -2441,6 +2818,23 @@
   // Wendezeiten und Takt wirken nur auf die Umlaufrechnung.
   [wendeEndInput, wendeStartInput, taktInput].forEach(function (input) {
     input.addEventListener("input", renderSummary);
+  });
+
+  // Eingaben wie "5" oder "5:7" beim Verlassen auf mm:ss normieren.
+  [wendeEndInput, wendeStartInput].forEach(function (input) {
+    input.addEventListener("blur", function () {
+      input.value = clock(parseClock(input.value));
+      renderSummary();
+    });
+  });
+
+  noTaktInput.addEventListener("change", renderSummary);
+
+  // Hebt die Wende an der Endhaltestelle genau um den fehlenden Betrag an.
+  btnTaktrein.addEventListener("click", function () {
+    if (taktGap <= 0) { return; }
+    wendeEndInput.value = clock(wendeSeconds(wendeEndInput) + taktGap);
+    renderSummary();
   });
 
   btnFit.addEventListener("click", fitRoute);
