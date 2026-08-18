@@ -934,6 +934,18 @@
 
   .toggle input { margin: 0; }
 
+  .radioset {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: var(--panel);
+  }
+
+  .radioset .toggle { cursor: pointer; }
+
   input.wende-in {
     width: 62px;
     text-align: right;
@@ -1288,6 +1300,20 @@
           <div class="calc" id="calcVehicles"></div>
           <div class="tools">
             <button id="btnTaktrein" type="button" disabled>Automatisch taktrein machen</button>
+            <span class="radioset" id="taktZiel" role="radiogroup" aria-label="Wohin die fehlende Zeit fließt">
+              <label class="toggle">
+                <input type="radio" name="taktziel" value="end" checked>
+                Ziel-Wendezeit
+              </label>
+              <label class="toggle">
+                <input type="radio" name="taktziel" value="start">
+                Start-Wendezeit
+              </label>
+              <label class="toggle">
+                <input type="radio" name="taktziel" value="both">
+                beide (hälftig)
+              </label>
+            </span>
             <label class="toggle">
               <input id="noTakt" type="checkbox">
               Kein Takt-Ziel
@@ -3026,6 +3052,7 @@
   var calcVehiclesEl = document.getElementById("calcVehicles");
   var warnTakt = document.getElementById("warnTakt");
   var btnTaktrein = document.getElementById("btnTaktrein");
+  var taktZielGroup = document.getElementById("taktZiel");
   var noTaktInput = document.getElementById("noTakt");
   var warnLoop = document.getElementById("warnLoop");
 
@@ -3185,6 +3212,7 @@
 
     if (takt <= 0) {
       btnTaktrein.disabled = true;
+      btnTaktrein.title = "Ohne Takt lässt sich nichts angleichen";
       calcVehiclesEl.textContent = "";
       var hint = document.createElement("span");
       hint.className = "lead";
@@ -3216,6 +3244,7 @@
     if (rest === 0 || umlaufSec === 0) {
       warnTakt.hidden = true;
       btnTaktrein.disabled = true;
+      btnTaktrein.title = "Umlaufzeit ist bereits ein glattes Vielfaches des Taktes";
       return;
     }
 
@@ -3225,6 +3254,13 @@
 
     taktGap = buffer;
     btnTaktrein.disabled = quiet;
+
+    var zielText = {
+      end: "auf die Ziel-Wendezeit",
+      start: "auf die Start-Wendezeit",
+      both: "hälftig auf beide Wendezeiten"
+    }[taktZielAuswahl()];
+    btnTaktrein.title = "Fehlende " + clock(buffer) + " " + zielText + " legen";
 
     if (quiet) {
       warnTakt.hidden = true;
@@ -3513,12 +3549,40 @@
     });
   });
 
-  // Hebt die Wende an der Endhaltestelle genau um den fehlenden Betrag an.
+  function taktZielAuswahl() {
+    var chosen = taktZielGroup.querySelector('input[name="taktziel"]:checked');
+    return chosen ? chosen.value : "end";
+  }
+
+  // Legt den fehlenden Betrag genau dorthin, wo er gewünscht ist. Bei
+  // hälftiger Aufteilung geht die ungerade Sekunde an die Ziel-Wendezeit;
+  // die jeweils nicht gewählte Seite bleibt unangetastet.
+  function verteileTaktLuecke(gap) {
+    var ziel = taktZielAuswahl();
+
+    if (ziel === "start") {
+      wendeStartInput.value = clock(wendeSeconds(wendeStartInput) + gap);
+      return;
+    }
+
+    if (ziel === "both") {
+      var haelfte = Math.floor(gap / 2);
+      wendeStartInput.value = clock(wendeSeconds(wendeStartInput) + haelfte);
+      wendeEndInput.value = clock(wendeSeconds(wendeEndInput) + (gap - haelfte));
+      return;
+    }
+
+    wendeEndInput.value = clock(wendeSeconds(wendeEndInput) + gap);
+  }
+
   btnTaktrein.addEventListener("click", function () {
     if (taktGap <= 0) { return; }
-    wendeEndInput.value = clock(wendeSeconds(wendeEndInput) + taktGap);
+    verteileTaktLuecke(taktGap);
     renderSummary();
   });
+
+  // Die Beschriftung des Knopfes soll zeigen, was er gerade tun würde.
+  taktZielGroup.addEventListener("change", renderSummary);
 
   btnFit.addEventListener("click", fitRoute);
   btnRetry.addEventListener("click", retryFailedRoutes);
