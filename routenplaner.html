@@ -121,6 +121,29 @@
   .ctrl input.factor { width: 66px; text-align: right; }
   .ctrl .hint { font-size: 10.5px; color: var(--muted-2); }
 
+  button.lockbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-weight: 600;
+    border-color: var(--line);
+  }
+
+  button.lockbtn[aria-pressed="true"] {
+    background: #f3ece2;
+    border-color: #ddc9a8;
+    color: var(--warn);
+  }
+
+  button.lockbtn[aria-pressed="false"] {
+    background: #e6f0e8;
+    border-color: #b3ceb9;
+    color: var(--pin-start);
+  }
+
+  .map-card.locked #map { cursor: grab; }
+
   /* ---------- Umschalter ---------- */
 
   .switchbar {
@@ -934,6 +957,109 @@
     display: inline-block;
   }
 
+  /* ---------- Szenarien und Vergleich ---------- */
+
+  .scen-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .scen-bar .field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .scen-bar select, .planbar input[type="text"] {
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 3px 6px;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+
+  .scen-bar select { min-width: 200px; font-weight: 600; }
+  .scen-bar select:focus, .planbar input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .scen-bar .spacer { margin-left: auto; }
+
+  .planinfo .dirty { color: var(--warn); font-weight: 600; }
+  .planinfo .clean { color: var(--pin-start); font-weight: 600; }
+
+  .cmp-scroll { overflow-x: auto; }
+
+  table.cmp {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table.cmp th, table.cmp td {
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  table.cmp th.metric, table.cmp td.metric {
+    text-align: left;
+    font-variant-numeric: normal;
+    position: sticky;
+    left: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+  }
+
+  table.cmp thead th {
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  table.cmp thead th.metric { background: var(--panel-alt); }
+  table.cmp thead th.live { color: var(--accent); }
+  table.cmp tbody td.metric { font-weight: 600; color: var(--text); }
+  table.cmp tbody tr:hover td { background: #fafbfc; }
+  table.cmp tbody tr:hover td.metric { background: #fafbfc; }
+  table.cmp tr.group td, table.cmp tr.group th {
+    background: var(--panel-alt);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  table.cmp td.best { font-weight: 700; }
+  table.cmp td.best::after {
+    content: " ●";
+    color: var(--pin-start);
+    font-size: 9px;
+    vertical-align: 2px;
+  }
+
+  table.cmp .sub { display: block; font-size: 10px; color: var(--muted-2); font-weight: 400; }
+
   /* ---------- Zusammenfassung ---------- */
 
   .summary {
@@ -1209,6 +1335,13 @@
     </div>
     <div class="controls">
       <label class="ctrl">
+        <span class="cap">Bearbeitung</span>
+        <button id="btnLock" type="button" class="lockbtn" aria-pressed="true">
+          <span id="lockIcon">🔒</span><span id="lockText">gesperrt</span>
+        </button>
+        <span class="hint" id="lockHint">Karte nur ansehen</span>
+      </label>
+      <label class="ctrl">
         <span class="cap">Linie</span>
         <input id="lineNo" type="text" value="697" maxlength="12">
       </label>
@@ -1248,6 +1381,7 @@
         <button type="button" data-view="plan" aria-pressed="false">Tagesfahrplan</button>
         <button type="button" data-view="bild" aria-pressed="false">Bildfahrplan</button>
         <button type="button" data-view="conn" aria-pressed="false">Anschlüsse</button>
+        <button type="button" data-view="cmp" aria-pressed="false">Vergleich</button>
       </div>
     </div>
   </div>
@@ -1376,6 +1510,36 @@
     <div class="conn-editor" id="connEditor"></div>
     <div class="empty" id="connEmpty" hidden></div>
     <div id="connTables"></div>
+  </div>
+
+  <!-- Vergleich: Szenarien verwalten und nebeneinander bewerten -->
+  <div class="table" id="viewCmp" hidden>
+    <div class="planbar">
+      <label class="field">
+        Szenario sichern als
+        <input id="scenName" type="text" placeholder="z. B. 697 Variante A" size="22">
+      </label>
+      <button id="btnScenSave" type="button">Speichern</button>
+      <span class="planinfo" id="scenState"></span>
+    </div>
+
+    <div class="scen-bar">
+      <label class="field">
+        Gespeichert
+        <select id="scenSelect"></select>
+      </label>
+      <button id="btnScenLoad" type="button">Laden</button>
+      <button id="btnScenRename" type="button">Umbenennen</button>
+      <button id="btnScenDelete" type="button">Löschen</button>
+      <span class="spacer"></span>
+      <button id="btnScenExport" type="button">Export einzeln</button>
+      <button id="btnScenExportAll" type="button">Export alle</button>
+      <button id="btnScenImport" type="button">Import …</button>
+      <input id="scenFile" type="file" accept="application/json,.json" hidden>
+    </div>
+
+    <div class="empty" id="cmpEmpty" hidden></div>
+    <div class="cmp-scroll" id="cmpScroll"></div>
   </div>
 
   <section class="summary" aria-live="polite">
@@ -1561,6 +1725,10 @@
   var activeDir = "out";
   var activeView = "map";
 
+  // Startzustand bewusst gesperrt: beim Öffnen soll ein Klick in die
+  // Karte nichts anlegen und kein Marker versehentlich verrutschen.
+  var editingLocked = true;
+
   // Routing-Ergebnisse je gerichtetem Koordinatenpaar. A→B und B→A sind
   // eigene Schlüssel – wegen Einbahnstraßen können sie sich unterscheiden.
   var routeCache = {};
@@ -1586,6 +1754,7 @@
   var clickTimer = null;
 
   map.on("click", function (e) {
+    if (editingLocked) { return; }
     if (clickTimer) { clearTimeout(clickTimer); }
     var latlng = e.latlng;
     clickTimer = setTimeout(function () {
@@ -1878,27 +2047,13 @@
 
     place.marker = L.marker([lat, lng], {
       icon: pinIcon(0, 1),
-      draggable: true,
+      draggable: !editingLocked,
       keyboard: false
     }).addTo(map);
 
     place.marker.bindPopup(buildNamePopup(place), { minWidth: 190, autoPan: true });
 
-    place.marker.on("popupopen", function () {
-      if (place.popupInput) { place.popupInput.focus(); place.popupInput.select(); }
-    });
-
-    place.marker.on("drag", function (e) {
-      var pos = e.target.getLatLng();
-      place.lat = pos.lat;
-      place.lng = pos.lng;
-    });
-
-    place.marker.on("dragend", function () {
-      syncRoutes();          // verschobener Ort braucht neue Teilstrecken
-      renderBody();
-      renderSummary();
-    });
+    bindPlaceMarker(place);
 
     places.push(place);
 
@@ -1913,6 +2068,21 @@
 
   // Ein Ort ist dieselbe Haltestelle in beiden Richtungen, deshalb
   // verschwindet er beim Löschen aus Hin- und Rückweg.
+  // Löschen ist auch im gesperrten Zustand möglich, aber nie versehentlich.
+  function confirmRemovePlace(place) {
+    var label = resolvePlace(place).name.trim() || place.fallback;
+    var inOut = dirs.out.entries.filter(function (e) { return e.place === place; }).length;
+    var inBack = dirs.back.entries.filter(function (e) { return e.place === place; }).length;
+
+    var text = "Haltestelle „" + label + "\" wirklich löschen?\n\n" +
+      "Sie wird aus BEIDEN Richtungen entfernt – aus der Hinfahrt (" + inOut + "×) " +
+      "und aus der Rückfahrt (" + inBack + "×). Fahrzeiten und Aufenthalte dieser " +
+      "Haltestelle gehen in beiden Richtungen verloren; die angrenzenden Teilstrecken " +
+      "werden neu berechnet.";
+
+    if (window.confirm(text)) { removePlace(place); }
+  }
+
   function removePlace(place) {
     map.removeLayer(place.marker);
     places = places.filter(function (p) { return p !== place; });
@@ -1980,6 +2150,25 @@
     dirs.out.entries = [];
     dirs.back.entries = [];
     renderAll();
+  }
+
+  // Ereignisse eines Ortsmarkers - beim Anlegen wie beim Laden gleich.
+  function bindPlaceMarker(place) {
+    place.marker.on("popupopen", function () {
+      if (place.popupInput) { place.popupInput.focus(); place.popupInput.select(); }
+    });
+
+    place.marker.on("drag", function (e) {
+      var pos = e.target.getLatLng();
+      place.lat = pos.lat;
+      place.lng = pos.lng;
+    });
+
+    place.marker.on("dragend", function () {
+      syncRoutes();          // verschobener Ort braucht neue Teilstrecken
+      renderBody();
+      renderSummary();
+    });
   }
 
   function buildNamePopup(place) {
@@ -2314,7 +2503,7 @@
       entry.place.marker.openPopup();
     }));
     actions.appendChild(iconButton("✕", "Haltestelle in beiden Richtungen löschen", false, function () {
-      removePlace(entry.place);
+      confirmRemovePlace(entry.place);
     }));
 
     // Nur am Ende der Rückfahrt und nur, wenn dort nicht ohnehin schon
@@ -2500,6 +2689,19 @@
   var planEmpty = document.getElementById("planEmpty");
   var planTable = document.getElementById("planTable");
   var planInfo = document.getElementById("planInfo");
+  var cmpScroll = document.getElementById("cmpScroll");
+  var cmpEmpty = document.getElementById("cmpEmpty");
+  var scenName = document.getElementById("scenName");
+  var scenSelect = document.getElementById("scenSelect");
+  var scenState = document.getElementById("scenState");
+  var scenFile = document.getElementById("scenFile");
+  var btnScenSave = document.getElementById("btnScenSave");
+  var btnScenLoad = document.getElementById("btnScenLoad");
+  var btnScenRename = document.getElementById("btnScenRename");
+  var btnScenDelete = document.getElementById("btnScenDelete");
+  var btnScenExport = document.getElementById("btnScenExport");
+  var btnScenExportAll = document.getElementById("btnScenExportAll");
+  var btnScenImport = document.getElementById("btnScenImport");
   var connEditor = document.getElementById("connEditor");
   var connTables = document.getElementById("connTables");
   var connEmpty = document.getElementById("connEmpty");
@@ -2659,6 +2861,167 @@
   }
 
   /* ==================================================================
+     Szenarien: Zustand einfrieren und wiederherstellen
+
+     `currentData()` ist die vollständige, marker- und DOM-freie
+     Beschreibung der Arbeitsversion. Sie dient dreifach: als Inhalt
+     eines gespeicherten Szenarios, als Grundlage der Kennzahlen im
+     Vergleich und als Vergleichsmaßstab für ungesicherte Änderungen.
+     ================================================================== */
+
+  var SCENARIO_KEY = "routenplaner.szenarien.v1";
+  var SCENARIO_FORMAT = "routenplaner-szenario";
+
+  function entryData(entry) {
+    return {
+      place: entry.place.id,
+      minutes: entry.minutes,
+      manual: entry.manual,
+      dwell: entry.dwell,
+      // Streckenlänge der zuführenden Teilstrecke wandert mit: der
+      // Routing-Zwischenspeicher existiert auf einem anderen Rechner nicht.
+      km: (entry.leg && entry.leg.status === "ok") ? entry.leg.km : null
+    };
+  }
+
+  function currentData() {
+    return {
+      line: lineInput.value,
+      busFactor: factorInput.value,
+      defaultDwell: dwellInput.value,
+      wendeEnd: wendeEndInput.value,
+      wendeStart: wendeStartInput.value,
+      takt: taktInput.value,
+      noTakt: noTaktInput.checked,
+      taktZiel: taktZielAuswahl(),
+      opStart: opStartInput.value,
+      opEnd: opEndInput.value,
+      connMin: connMinInput.value,
+      connGood: connGoodInput.value,
+      places: places.map(function (place) {
+        return {
+          id: place.id,
+          name: place.name,
+          fallback: place.fallback,
+          lat: place.lat,
+          lng: place.lng,
+          linkedTo: place.linkedTo ? place.linkedTo.id : null,
+          unlinkedPos: place.unlinkedPos
+            ? { lat: place.unlinkedPos.lat, lng: place.unlinkedPos.lng }
+            : null,
+          connections: (place.connections || []).map(function (conn) {
+            return {
+              id: conn.id, name: conn.name, hint: conn.hint,
+              takt: conn.takt, anchor: conn.anchor, rel: conn.rel
+            };
+          })
+        };
+      }),
+      out: dirs.out.entries.map(entryData),
+      back: dirs.back.entries.map(entryData)
+    };
+  }
+
+  function applyData(data) {
+    // Bestehende Marker abräumen, dann alles neu aufbauen.
+    places.forEach(function (place) { map.removeLayer(place.marker); });
+    places = [];
+    dirs.out.entries = [];
+    dirs.back.entries = [];
+
+    var byId = {};
+    var maxPlaceId = 0;
+    var maxConnId = 0;
+
+    (data.places || []).forEach(function (saved) {
+      var place = {
+        id: saved.id,
+        name: saved.name || "",
+        fallback: saved.fallback || ("Haltestelle " + saved.id),
+        lat: saved.lat,
+        lng: saved.lng,
+        marker: null,
+        popupInput: null,
+        linkedTo: null,
+        unlinkedPos: saved.unlinkedPos
+          ? { lat: saved.unlinkedPos.lat, lng: saved.unlinkedPos.lng }
+          : null,
+        connections: (saved.connections || []).map(function (conn) {
+          maxConnId = Math.max(maxConnId, conn.id || 0);
+          return {
+            id: conn.id || (++maxConnId),
+            name: conn.name || "",
+            hint: conn.hint || "",
+            takt: typeof conn.takt === "number" ? conn.takt : 20,
+            anchor: typeof conn.anchor === "number" ? conn.anchor : 0,
+            rel: conn.rel || "both"
+          };
+        })
+      };
+
+      place.marker = L.marker([place.lat, place.lng], {
+        icon: pinIcon(0, 1),
+        draggable: !editingLocked,
+        keyboard: false
+      }).addTo(map);
+      place.marker.bindPopup(buildNamePopup(place), { minWidth: 190, autoPan: true });
+      bindPlaceMarker(place);
+
+      byId[place.id] = place;
+      maxPlaceId = Math.max(maxPlaceId, place.id);
+      places.push(place);
+    });
+
+    (data.places || []).forEach(function (saved) {
+      if (saved.linkedTo && byId[saved.linkedTo]) {
+        byId[saved.id].linkedTo = byId[saved.linkedTo];
+      }
+    });
+
+    nextPlaceId = maxPlaceId + 1;
+    nextConnId = maxConnId + 1;
+
+    DIR_KEYS.forEach(function (key) {
+      dirs[key].entries = (data[key] || []).filter(function (saved) {
+        return byId[saved.place];
+      }).map(function (saved) {
+        return {
+          place: byId[saved.place],
+          minutes: saved.minutes === undefined ? null : saved.minutes,
+          manual: !!saved.manual,
+          dwell: typeof saved.dwell === "number" ? saved.dwell : 0,
+          leg: null,
+          ui: {}
+        };
+      });
+    });
+
+    var setValue = function (input, value, fallback) {
+      input.value = (value === undefined || value === null) ? fallback : value;
+    };
+    setValue(lineInput, data.line, "697");
+    setValue(factorInput, data.busFactor, "1.4");
+    setValue(dwellInput, data.defaultDwell, "20");
+    setValue(wendeEndInput, data.wendeEnd, "5:00");
+    setValue(wendeStartInput, data.wendeStart, "5:00");
+    setValue(taktInput, data.takt, "20");
+    setValue(opStartInput, data.opStart, "04:30");
+    setValue(opEndInput, data.opEnd, "23:30");
+    setValue(bildStartInput, data.opStart, "04:30");
+    setValue(bildEndInput, data.opEnd, "23:30");
+    setValue(connMinInput, data.connMin, "3");
+    setValue(connGoodInput, data.connGood, "8");
+    noTaktInput.checked = !!data.noTakt;
+
+    var ziel = taktZielGroup.querySelector('input[value="' + (data.taktZiel || "end") + '"]');
+    if (ziel) { ziel.checked = true; }
+
+    editorShape = null;
+    renderAll();
+    if (places.length > 1) { fitRoute(); }
+  }
+
+  /* ==================================================================
      Anschlüsse
 
      Eine Anschlusslinie wird durch Takt und Ankerminute beschrieben:
@@ -2746,6 +3109,123 @@
   }
 
   /* ==================================================================
+     Kennzahlen eines Szenarios - rein aus Daten, für den Vergleich
+     ================================================================== */
+
+  function eventsFromData(data, placeId, plan, index) {
+    var events = [];
+    var target = index.resolve(placeId);
+    if (!target) { return events; }
+
+    plan.trips.forEach(function (trip) {
+      var list = trip.dir === "out" ? (data.out || []) : (data.back || []);
+      var t = trip.time;
+
+      for (var i = 0; i < list.length; i++) {
+        if (i > 0) {
+          t += (list[i].minutes === null || list[i].minutes === undefined)
+            ? 0 : list[i].minutes * 60;
+        }
+        var arrival = t;
+        var departure = arrival + (i === 0 ? 0 : list[i].dwell);
+        var here = index.resolve(list[i].place) === target;
+
+        if (here && i > 0) { events.push({ time: arrival, kind: "an" }); }
+        if (here && i < list.length - 1) {
+          events.push({ time: i === 0 ? trip.time : departure, kind: "ab" });
+        }
+        if (i > 0 && i < list.length - 1) { t = departure; }
+      }
+    });
+
+    return events;
+  }
+
+  function metricsFor(data) {
+    var index = placeIndex(data);
+    var out = data.out || [];
+    var back = data.back || [];
+    var tOut = totalsFromData(out, index);
+    var tBack = totalsFromData(back, index);
+
+    var wendeEndSec = parseClock(data.wendeEnd);
+    var wendeStartSec = parseClock(data.wendeStart);
+    var umlaufSec = tOut.totalSeconds + wendeEndSec + tBack.totalSeconds + wendeStartSec;
+
+    var takt = parseFloat(String(data.takt).replace(",", "."));
+    var taktSec = (isNaN(takt) || takt <= 0) ? 0 : Math.round(takt * 60);
+    var vehicles = taktSec > 0 ? Math.ceil(umlaufSec / taktSec) : null;
+
+    // Eindeutige Orte in Reihenfolge der Hinfahrt
+    var seen = [];
+    out.forEach(function (entry) {
+      var place = index.resolve(entry.place);
+      if (place && seen.indexOf(place) === -1) { seen.push(place); }
+    });
+
+    var metrics = {
+      umlaufSec: umlaufSec,
+      vehicles: vehicles,
+      taktSec: taktSec,
+      driveOut: tOut.driveSeconds,
+      driveBack: tBack.driveSeconds,
+      totalOut: tOut.totalSeconds,
+      totalBack: tBack.totalSeconds,
+      dwellOut: tOut.dwellSeconds,
+      dwellBack: tBack.dwellSeconds,
+      km: tOut.km + tBack.km,
+      partlyAir: tOut.partlyAir || tBack.partlyAir,
+      stops: seen.length,
+      missing: tOut.missing + tBack.missing,
+      wendeEndSec: wendeEndSec,
+      wendeStartSec: wendeStartSec,
+      good: 0, tight: 0, bad: 0, checked: 0,
+      connections: 0,
+      scheduleError: null
+    };
+
+    seen.forEach(function (place) {
+      metrics.connections += (place.connections || []).length;
+    });
+
+    var plan = scheduleFrom(data);
+    if (plan.error) {
+      metrics.scheduleError = plan.error;
+      return metrics;
+    }
+
+    var minimum = (parseInt(data.connMin, 10) || 0) * 60;
+    var good = (parseInt(data.connGood, 10) || 0) * 60;
+
+    seen.forEach(function (place) {
+      var list = place.connections || [];
+      if (list.length === 0) { return; }
+
+      var events = eventsFromData(data, place.id, plan, index);
+
+      events.forEach(function (event) {
+        list.forEach(function (conn) {
+          var relevant = conn.rel === "both" ||
+            (conn.rel === "an" && event.kind === "an") ||
+            (conn.rel === "ab" && event.kind === "ab");
+          if (!relevant || !(conn.takt > 0)) { return; }
+
+          var forward = event.kind === "an";
+          var connSec = connectionTime(conn, event.time, forward);
+          var wait = forward ? connSec - event.time : event.time - connSec;
+
+          metrics.checked++;
+          if (wait < minimum) { metrics.bad++; }
+          else if (wait < good) { metrics.tight++; }
+          else { metrics.good++; }
+        });
+      });
+    });
+
+    return metrics;
+  }
+
+  /* ==================================================================
      Tagesfahrplan mit Fahrzeugzuordnung
 
      Aus Betriebszeit und Takt entstehen die Hinfahrt-Abfahrten, jede
@@ -2787,30 +3267,35 @@
     return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
   }
 
-  function buildSchedule() {
-    var out = dirs.out.entries;
-    var back = dirs.back.entries;
+  // Rein aus Daten gerechnet, ohne Zugriff auf DOM oder Karte. Der
+  // Fahrplan der Arbeitsversion und die Kennzahlen gespeicherter
+  // Szenarien laufen beide hierdurch und können deshalb nicht
+  // auseinanderlaufen.
+  function scheduleFrom(data) {
+    var out = data.out || [];
+    var back = data.back || [];
 
     if (out.length < 2 || back.length < 2) {
       return { error: "Für den Fahrplan braucht es Hin- und Rückfahrt mit je mindestens zwei Haltestellen." };
     }
 
-    var takt = taktMinutes();
-    if (takt <= 0) {
+    var takt = parseFloat(String(data.takt).replace(",", "."));
+    if (isNaN(takt) || takt <= 0) {
       return { error: "Für den Fahrplan wird ein Takt größer als null gebraucht." };
     }
 
-    var startSec = parseTimeOfDay(opStartInput.value);
-    var endSec = parseTimeOfDay(opEndInput.value);
+    var startSec = parseTimeOfDay(data.opStart);
+    var endSec = parseTimeOfDay(data.opEnd);
     if (startSec === null || endSec === null) {
       return { error: "Betriebsbeginn und Betriebsende als Uhrzeit eintragen." };
     }
     if (endSec <= startSec) { endSec += 86400; }      // Betrieb über Mitternacht
 
-    var tOut = totalsFor(dirs.out);
-    var tBack = totalsFor(dirs.back);
-    var wendeEndSec = wendeSeconds(wendeEndInput);
-    var wendeStartSec = wendeSeconds(wendeStartInput);
+    var index = placeIndex(data);
+    var tOut = totalsFromData(out, index);
+    var tBack = totalsFromData(back, index);
+    var wendeEndSec = parseClock(data.wendeEnd);
+    var wendeStartSec = parseClock(data.wendeStart);
     var umlaufSec = tOut.totalSeconds + wendeEndSec + tBack.totalSeconds + wendeStartSec;
     var taktSec = Math.round(takt * 60);
     var vehicles = Math.ceil(umlaufSec / taktSec);
@@ -2826,17 +3311,17 @@
 
     var trips = [];
     var truncated = false;
-    var index = 0;
+    var runs = 0;
 
     for (var t = startSec; t <= endSec; t += taktSec) {
-      var vehicle = (index % vehicles) + 1;
+      var vehicle = (runs % vehicles) + 1;
       var backDeparture = t + tOut.totalSeconds + wendeEndSec;
 
       trips.push({ time: t, dir: "out", vehicle: vehicle, arrive: t + outRun });
       trips.push({ time: backDeparture, dir: "back", vehicle: vehicle,
                    arrive: backDeparture + backRun });
 
-      index++;
+      runs++;
       if (trips.length >= MAX_TRIPS) { truncated = true; break; }
     }
 
@@ -2849,19 +3334,92 @@
     return {
       trips: trips,
       vehicles: vehicles,
-      runs: index,
+      runs: runs,
       taktSec: taktSec,
       umlaufSec: umlaufSec,
+      wendeEndSec: wendeEndSec,
+      wendeStartSec: wendeStartSec,
       bufferSec: vehicles * taktSec - umlaufSec,
       startSec: startSec,
       endSec: endSec,
       truncated: truncated,
       missing: tOut.missing + tBack.missing,
-      from: nameOf(out[0]),
-      to: nameOf(out[out.length - 1]),
-      backFrom: nameOf(back[0]),
-      backTo: nameOf(back[back.length - 1])
+      totalsOut: tOut,
+      totalsBack: tBack,
+      from: dataName(index, out[0]),
+      to: dataName(index, out[out.length - 1]),
+      backFrom: dataName(index, back[0]),
+      backTo: dataName(index, back[back.length - 1])
     };
+  }
+
+  function buildSchedule() {
+    return scheduleFrom(currentData());
+  }
+
+  // Nachschlagewerk für gespeicherte Orte samt Auflösung von Verbindungen.
+  function placeIndex(data) {
+    var byId = {};
+    (data.places || []).forEach(function (place) { byId[place.id] = place; });
+
+    return {
+      byId: byId,
+      resolve: function (id) {
+        var place = byId[id];
+        return (place && place.linkedTo && byId[place.linkedTo]) ? byId[place.linkedTo] : place;
+      }
+    };
+  }
+
+  function dataName(index, entry) {
+    var place = index.resolve(entry.place);
+    if (!place) { return "–"; }
+    return (place.name || "").trim() || place.fallback || ("Haltestelle " + place.id);
+  }
+
+  // Fahrzeit, Aufenthalt und Länge einer Richtung aus gespeicherten Daten.
+  // Für die Länge wird der Routing-Cache befragt; fehlt der Eintrag –
+  // etwa auf einem anderen Rechner –, zählt die Luftlinie.
+  function totalsFromData(list, index) {
+    var out = {
+      stops: list.length,
+      legs: Math.max(0, list.length - 1),
+      driveSeconds: 0,
+      dwellSeconds: 0,
+      totalSeconds: 0,
+      missing: 0,
+      km: 0,
+      partlyAir: false
+    };
+
+    for (var i = 1; i < list.length; i++) {
+      out.dwellSeconds += list[i].dwell;
+
+      if (list[i].minutes === null || list[i].minutes === undefined) {
+        out.missing++;
+      } else {
+        out.driveSeconds += list[i].minutes * 60;
+      }
+
+      if (typeof list[i].km === "number") {
+        out.km += list[i].km;                       // im Szenario gesichert
+      } else {
+        var a = index.resolve(list[i - 1].place);
+        var b = index.resolve(list[i].place);
+        if (a && b) {
+          var cached = routeCache[legKey(a, b)];
+          if (cached && cached.status === "ok") {
+            out.km += cached.km;
+          } else {
+            out.km += haversineKm(a, b);
+            out.partlyAir = true;
+          }
+        }
+      }
+    }
+
+    out.totalSeconds = out.driveSeconds + out.dwellSeconds;
+    return out;
   }
 
   function renderPlan() {
@@ -3487,6 +4045,413 @@
   }
 
   /* ==================================================================
+     Szenarienverwaltung und Vergleich
+     ================================================================== */
+
+  var savedSnapshot = null;      // Stand beim letzten Speichern oder Laden
+  var storageBroken = false;
+
+  function loadStore() {
+    try {
+      var raw = window.localStorage.getItem(SCENARIO_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (err) {
+      storageBroken = true;
+      return [];
+    }
+  }
+
+  function saveStore(list) {
+    try {
+      window.localStorage.setItem(SCENARIO_KEY, JSON.stringify(list));
+      return true;
+    } catch (err) {
+      storageBroken = true;
+      window.alert("Speichern im Browser nicht möglich (" + (err && err.name) + ").\n" +
+                   "Der Export als JSON-Datei funktioniert unabhängig davon.");
+      return false;
+    }
+  }
+
+  function isDirty() {
+    return savedSnapshot !== null && JSON.stringify(currentData()) !== savedSnapshot;
+  }
+
+  function markClean() {
+    savedSnapshot = JSON.stringify(currentData());
+  }
+
+  function uniqueName(list, wanted) {
+    var name = wanted;
+    var suffix = 2;
+    var taken = function (candidate) {
+      return list.some(function (item) { return item.name === candidate; });
+    };
+    while (taken(name)) { name = wanted + " (" + suffix + ")"; suffix++; }
+    return name;
+  }
+
+  function selectedScenario(list) {
+    var index = scenSelect.selectedIndex;
+    return (index >= 0 && list[index]) ? list[index] : null;
+  }
+
+  function fillScenSelect(list, keepName) {
+    scenSelect.textContent = "";
+    list.forEach(function (item) {
+      var option = document.createElement("option");
+      option.value = item.name;
+      option.textContent = item.name + "  ·  " + (item.saved || "").slice(0, 16).replace("T", " ");
+      scenSelect.appendChild(option);
+    });
+
+    if (keepName) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].name === keepName) { scenSelect.selectedIndex = i; break; }
+      }
+    }
+
+    var empty = list.length === 0;
+    scenSelect.disabled = empty;
+    btnScenLoad.disabled = empty;
+    btnScenRename.disabled = empty;
+    btnScenDelete.disabled = empty;
+    btnScenExport.disabled = empty;
+    btnScenExportAll.disabled = empty;
+  }
+
+  function saveScenario() {
+    var wanted = scenName.value.trim();
+    if (!wanted) {
+      window.alert("Bitte zuerst einen Namen für das Szenario eintragen.");
+      scenName.focus();
+      return;
+    }
+
+    var list = loadStore();
+    var existing = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].name === wanted) { existing = i; break; }
+    }
+
+    if (existing > -1 &&
+        !window.confirm("Ein Szenario „" + wanted + "\" gibt es bereits.\n\n" +
+                        "Soll es mit dem aktuellen Stand überschrieben werden?")) {
+      return;
+    }
+
+    var record = {
+      name: wanted,
+      saved: new Date().toISOString(),
+      data: currentData()
+    };
+
+    if (existing > -1) { list[existing] = record; } else { list.push(record); }
+
+    if (saveStore(list)) { markClean(); }
+    fillScenSelect(list, wanted);
+    renderCompare();
+  }
+
+  function loadScenario() {
+    var list = loadStore();
+    var record = selectedScenario(list);
+    if (!record) { return; }
+
+    if (isDirty() &&
+        !window.confirm("Die Arbeitsversion hat ungesicherte Änderungen.\n\n" +
+                        "Szenario „" + record.name + "\" laden und die aktuelle " +
+                        "Arbeitsversion damit ersetzen?")) {
+      return;
+    }
+
+    applyData(record.data);
+    scenName.value = record.name;
+    markClean();
+    fillScenSelect(list, record.name);
+    renderCompare();
+  }
+
+  function renameScenario() {
+    var list = loadStore();
+    var record = selectedScenario(list);
+    if (!record) { return; }
+
+    var wanted = window.prompt("Neuer Name für „" + record.name + "\":", record.name);
+    if (wanted === null) { return; }
+    wanted = wanted.trim();
+    if (!wanted || wanted === record.name) { return; }
+
+    var others = list.filter(function (item) { return item !== record; });
+    record.name = uniqueName(others, wanted);
+    saveStore(list);
+    fillScenSelect(list, record.name);
+    renderCompare();
+  }
+
+  function deleteScenario() {
+    var list = loadStore();
+    var record = selectedScenario(list);
+    if (!record) { return; }
+
+    if (!window.confirm("Szenario „" + record.name + "\" endgültig löschen?\n\n" +
+                        "Der gespeicherte Stand geht verloren. Die Arbeitsversion " +
+                        "bleibt unverändert.")) {
+      return;
+    }
+
+    saveStore(list.filter(function (item) { return item !== record; }));
+    fillScenSelect(loadStore(), null);
+    renderCompare();
+  }
+
+  function downloadJson(filename, payload) {
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function safeFilename(text) {
+    return text.replace(/[^\wäöüÄÖÜß.-]+/g, "_").replace(/^_+|_+$/g, "") || "szenario";
+  }
+
+  function exportOne() {
+    var record = selectedScenario(loadStore());
+    if (!record) { return; }
+    downloadJson("routenplaner-" + safeFilename(record.name) + ".json", {
+      format: SCENARIO_FORMAT,
+      version: 1,
+      exported: new Date().toISOString(),
+      scenarios: [record]
+    });
+  }
+
+  function exportAll() {
+    var list = loadStore();
+    if (list.length === 0) { return; }
+    downloadJson("routenplaner-szenarien.json", {
+      format: SCENARIO_FORMAT,
+      version: 1,
+      exported: new Date().toISOString(),
+      scenarios: list
+    });
+  }
+
+  function importFile(file) {
+    var reader = new FileReader();
+
+    reader.onload = function () {
+      var parsed;
+      try {
+        parsed = JSON.parse(String(reader.result));
+      } catch (err) {
+        window.alert("Die Datei enthält kein lesbares JSON.");
+        return;
+      }
+
+      var incoming = [];
+      if (parsed && Array.isArray(parsed.scenarios)) { incoming = parsed.scenarios; }
+      else if (parsed && parsed.data && parsed.name) { incoming = [parsed]; }
+
+      incoming = incoming.filter(function (item) {
+        return item && item.data && Array.isArray(item.data.places);
+      });
+
+      if (incoming.length === 0) {
+        window.alert("Keine Szenarien in der Datei gefunden.\n\n" +
+                     "Erwartet wird eine Datei, wie sie der Export erzeugt.");
+        return;
+      }
+
+      var list = loadStore();
+      var added = [];
+      incoming.forEach(function (item) {
+        var name = uniqueName(list, String(item.name || "Import"));
+        list.push({ name: name, saved: item.saved || new Date().toISOString(), data: item.data });
+        added.push(name);
+      });
+
+      saveStore(list);
+      fillScenSelect(list, added[added.length - 1]);
+      renderCompare();
+      window.alert(added.length + " " + plural(added.length, "Szenario", "Szenarien") +
+                   " importiert:\n" + added.join("\n"));
+    };
+
+    reader.readAsText(file);
+  }
+
+  /* ---------- Vergleichstabelle ---------- */
+
+  function cmpValue(metrics, key) {
+    switch (key) {
+      case "umlauf": return metrics.umlaufSec;
+      case "vehicles": return metrics.vehicles;
+      case "totalOut": return metrics.totalOut;
+      case "totalBack": return metrics.totalBack;
+      case "km": return metrics.km;
+      case "stops": return metrics.stops;
+      case "good": return metrics.good;
+      case "tight": return metrics.tight;
+      case "bad": return metrics.bad;
+      default: return null;
+    }
+  }
+
+  function cmpText(metrics, key) {
+    switch (key) {
+      case "umlauf": return clock(metrics.umlaufSec);
+      case "vehicles": return metrics.vehicles === null ? "–" : String(metrics.vehicles);
+      case "totalOut": return clock(metrics.totalOut);
+      case "totalBack": return clock(metrics.totalBack);
+      case "km": return num(metrics.km) + " km" + (metrics.partlyAir ? " *" : "");
+      case "stops": return String(metrics.stops);
+      case "good": return String(metrics.good);
+      case "tight": return String(metrics.tight);
+      case "bad": return String(metrics.bad);
+      default: return "–";
+    }
+  }
+
+  var CMP_ROWS = [
+    { group: "Umlauf" },
+    { key: "umlauf", label: "Umlaufzeit", better: "min" },
+    { key: "vehicles", label: "Fahrzeuge", better: "min" },
+    { group: "Fahrzeiten" },
+    { key: "totalOut", label: "Hinfahrt gesamt", better: null },
+    { key: "totalBack", label: "Rückfahrt gesamt", better: null },
+    { key: "km", label: "Streckenlänge", better: null },
+    { key: "stops", label: "Haltestellen", better: null },
+    { group: "Anschlüsse" },
+    { key: "good", label: "komfortabel", better: "max" },
+    { key: "tight", label: "knapp", better: null },
+    { key: "bad", label: "unter Minimum", better: "min" }
+  ];
+
+  function renderCompare() {
+    cmpScroll.textContent = "";
+
+    var stored = loadStore();
+    var columns = [{ name: "Arbeitsversion", live: true, metrics: metricsFor(currentData()) }];
+
+    stored.forEach(function (record) {
+      columns.push({ name: record.name, live: false, metrics: metricsFor(record.data) });
+    });
+
+    scenState.textContent = "";
+    var state = document.createElement("span");
+    if (storageBroken) {
+      state.className = "dirty";
+      state.textContent = "Browser-Speicher nicht verfügbar – bitte Export nutzen";
+    } else if (savedSnapshot === null) {
+      state.textContent = "noch nicht gesichert";
+    } else if (isDirty()) {
+      state.className = "dirty";
+      state.textContent = "ungesicherte Änderungen";
+    } else {
+      state.className = "clean";
+      state.textContent = "gesichert";
+    }
+    scenState.appendChild(state);
+    scenState.appendChild(document.createTextNode("  ·  " + stored.length + " " +
+      plural(stored.length, "Szenario", "Szenarien") + " im Browser gespeichert"));
+
+    if (stored.length === 0) {
+      cmpEmpty.textContent = "Noch keine Szenarien gespeichert – oben einen Namen eintragen " +
+        "und speichern. Die Arbeitsversion steht unten schon als erste Spalte.";
+      cmpEmpty.hidden = false;
+    } else {
+      cmpEmpty.hidden = true;
+    }
+
+    var table = document.createElement("table");
+    table.className = "cmp";
+
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    var corner = document.createElement("th");
+    corner.className = "metric";
+    corner.textContent = "Kennzahl";
+    headRow.appendChild(corner);
+
+    columns.forEach(function (column) {
+      var th = document.createElement("th");
+      if (column.live) { th.className = "live"; }
+      th.textContent = column.name;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+
+    CMP_ROWS.forEach(function (row) {
+      var tr = document.createElement("tr");
+
+      if (row.group) {
+        tr.className = "group";
+        var cell = document.createElement("td");
+        cell.className = "metric";
+        cell.textContent = row.group;
+        tr.appendChild(cell);
+        columns.forEach(function () { tr.appendChild(document.createElement("td")); });
+        tbody.appendChild(tr);
+        return;
+      }
+
+      var label = document.createElement("td");
+      label.className = "metric";
+      label.textContent = row.label;
+      tr.appendChild(label);
+
+      // Bester Wert nur dort markieren, wo "besser" eindeutig ist.
+      // Nur Spalten mit einer tatsächlichen Linie vergleichen - eine
+      // leere Arbeitsversion wäre sonst überall der "beste" Wert.
+      var ranked = columns.filter(function (column) { return column.metrics.stops >= 2; });
+      var best = null;
+      if (row.better && ranked.length > 1) {
+        ranked.forEach(function (column) {
+          var value = cmpValue(column.metrics, row.key);
+          if (value === null || value === undefined) { return; }
+          if (best === null) { best = value; }
+          else if (row.better === "min") { best = Math.min(best, value); }
+          else { best = Math.max(best, value); }
+        });
+      }
+
+      columns.forEach(function (column) {
+        var td = document.createElement("td");
+        td.textContent = cmpText(column.metrics, row.key);
+        var value = cmpValue(column.metrics, row.key);
+        if (row.better && best !== null && value === best && column.metrics.stops >= 2) {
+          td.className = "best";
+        }
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    cmpScroll.appendChild(table);
+
+    var note = document.createElement("div");
+    note.className = "conn-legend";
+    note.textContent = "● bester Wert je Zeile, wo „besser\" eindeutig ist  ·  " +
+      "* Streckenlänge teilweise Luftlinie, weil für diese Koordinaten keine " +
+      "OSRM-Route im Zwischenspeicher liegt  ·  Anschlusszahlen mit den " +
+      "Schwellenwerten des jeweiligen Szenarios gerechnet";
+    cmpScroll.appendChild(note);
+  }
+
+  /* ==================================================================
      Zeilen auffrischen, ohne die Tabelle neu zu bauen
      (damit bleibt der Fokus im gerade bearbeiteten Feld erhalten)
      ================================================================== */
@@ -3655,6 +4620,10 @@
   var btnMirror = document.getElementById("btnMirror");
   var btnPrint = document.getElementById("btnPrint");
   var mapHint = document.getElementById("mapHint");
+  var lockButton = document.getElementById("btnLock");
+  var lockIcon = document.getElementById("lockIcon");
+  var lockText = document.getElementById("lockText");
+  var lockHint = document.getElementById("lockHint");
   var subOut = document.getElementById("subOut");
   var subBack = document.getElementById("subBack");
   var printHead = document.getElementById("printHead");
@@ -3878,6 +4847,7 @@
     if (activeView === "schema") { renderSchema(); }
     if (activeView === "plan") { renderPlan(); }
     if (activeView === "conn") { renderConnections(); }
+    if (activeView === "cmp") { renderCompare(); }
     if (activeView === "bild") { renderBild(); }
 
     printHead.textContent = "";
@@ -3895,10 +4865,10 @@
 
     btnFit.disabled = n === 0;
     btnClear.disabled = places.length === 0;
+    mapHint.hidden = n > 0 && !editingLocked;
     btnMirror.hidden = activeDir !== "back";
     btnMirror.disabled = dirs.out.entries.length === 0;
     btnPrint.hidden = activeView === "map";
-    mapHint.hidden = n > 0;
 
     // Routing-Zähler beider Richtungen für die Statuszeile
     var road = 0, pending = 0, failed = 0;
@@ -4010,6 +4980,7 @@
   var viewSchema = document.getElementById("viewSchema");
   var viewPlan = document.getElementById("viewPlan");
   var viewConn = document.getElementById("viewConn");
+  var viewCmp = document.getElementById("viewCmp");
   var viewBild = document.getElementById("viewBild");
   var mapCard = document.getElementById("mapCard");
 
@@ -4038,10 +5009,37 @@
       if (activeView !== "plan") { planBody.textContent = ""; }
       if (activeView !== "bild") { bildScroll.textContent = ""; }
       if (activeView !== "conn") { connTables.textContent = ""; }
+      if (activeView !== "cmp") { cmpScroll.textContent = ""; }
       // Beim Betreten der Anschlussansicht den Editor sicher neu aufbauen.
       if (activeView === "conn") { editorShape = null; }
     }
     refreshRows();
+  }
+
+  // Zieht den Sperrzustand auf Marker, Karte und Anzeige nach.
+  function applyLock() {
+    places.forEach(function (place) {
+      if (!place.marker.dragging) { return; }
+      if (editingLocked) { place.marker.dragging.disable(); }
+      else { place.marker.dragging.enable(); }
+    });
+
+    lockButton.setAttribute("aria-pressed", editingLocked ? "true" : "false");
+    lockIcon.textContent = editingLocked ? "🔒" : "🔓";
+    lockText.textContent = editingLocked ? "gesperrt" : "entsperrt";
+    lockHint.textContent = editingLocked
+      ? "Karte nur ansehen"
+      : "Klick setzt Haltestelle";
+    lockButton.title = editingLocked
+      ? "Bearbeitung entsperren: Klick in die Karte legt Haltestellen an, Marker lassen sich ziehen"
+      : "Bearbeitung sperren: Karte bleibt navigierbar, aber Klicks legen nichts an";
+
+    mapCard.classList.toggle("locked", editingLocked);
+
+    // Die Karte selbst bleibt in beiden Zuständen voll navigierbar.
+    mapHint.textContent = editingLocked
+      ? "Bearbeitung gesperrt – Karte lässt sich verschieben und zoomen, Klicks legen keine Haltestelle an."
+      : "Klick in die Karte setzt die erste Haltestelle.";
   }
 
   function renderAll() {
@@ -4049,6 +5047,7 @@
     syncRoutes();
     renderBody();
     renderSummary();
+    applyLock();          // neue Marker erben den Sperrzustand
   }
 
   function setDirection(key) {
@@ -4081,6 +5080,7 @@
     viewPlan.hidden = key !== "plan";
     viewBild.hidden = key !== "bild";
     viewConn.hidden = key !== "conn";
+    viewCmp.hidden = key !== "cmp";
 
     renderBody();
     renderSummary();
@@ -4097,6 +5097,12 @@
   document.getElementById("segView").addEventListener("click", function (e) {
     var button = e.target.closest ? e.target.closest("button[data-view]") : null;
     if (button) { setView(button.getAttribute("data-view")); }
+  });
+
+  lockButton.addEventListener("click", function () {
+    editingLocked = !editingLocked;
+    applyLock();
+    renderSummary();
   });
 
   lineInput.addEventListener("input", renderSummary);
@@ -4126,6 +5132,23 @@
 
   [connMinInput, connGoodInput].forEach(function (input) {
     input.addEventListener("input", renderConnTables);
+  });
+
+  btnScenSave.addEventListener("click", saveScenario);
+  btnScenLoad.addEventListener("click", loadScenario);
+  btnScenRename.addEventListener("click", renameScenario);
+  btnScenDelete.addEventListener("click", deleteScenario);
+  btnScenExport.addEventListener("click", exportOne);
+  btnScenExportAll.addEventListener("click", exportAll);
+
+  btnScenImport.addEventListener("click", function () { scenFile.click(); });
+  scenFile.addEventListener("change", function () {
+    if (scenFile.files && scenFile.files[0]) { importFile(scenFile.files[0]); }
+    scenFile.value = "";
+  });
+
+  scenName.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { saveScenario(); }
   });
 
   // Betriebszeit steht in Tagesfahrplan und Bildfahrplan; beide Paare
@@ -4188,6 +5211,9 @@
   });
 
   renderAll();
+  fillScenSelect(loadStore(), null);
+  markClean();
+  applyLock();
 })();
 </script>
 </body>
