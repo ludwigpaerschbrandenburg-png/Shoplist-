@@ -645,6 +645,120 @@
   svg.schema .wende-lbl { font-size: 11px; font-weight: 600; fill: var(--text); }
   svg.schema .wende-sub { font-size: 10px; fill: var(--muted); }
 
+  /* ---------- Tagesfahrplan ---------- */
+
+  .planbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 9px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .planbar .field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .planbar input[type="time"] {
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 2px 5px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .planbar input[type="time"]:focus { outline: none; border-color: var(--accent); }
+
+  .planbar .planinfo {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+
+  .veh-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 9px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .veh-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 1px 7px 1px 3px;
+    background: var(--panel);
+  }
+
+  .veh-chip i {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    border: 1px solid rgba(34, 39, 44, 0.22);
+    display: inline-block;
+  }
+
+  table.plan td.veh {
+    padding: 0;
+    width: 108px;
+  }
+
+  table.plan td.veh span {
+    display: block;
+    padding: 3px 9px;
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    border-left: 1px solid rgba(34, 39, 44, 0.12);
+  }
+
+  table.plan td.time {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    border-left: 4px solid transparent;
+    white-space: nowrap;
+  }
+
+  table.plan td.arr {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  table.plan .dir-out  { color: var(--dir-out); font-weight: 600; }
+  table.plan .dir-back { color: var(--dir-back); font-weight: 600; }
+
+  table.plan .route { color: var(--muted); font-size: 11.5px; }
+
+  table.plan .late {
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+    margin-left: 6px;
+  }
+
+  table.plan tbody tr.newhour td { border-top: 1px solid var(--line); }
+
   /* ---------- Zusammenfassung ---------- */
 
   .summary {
@@ -860,6 +974,10 @@
 
   @media print {
     body { background: #fff; font-size: 10.5px; }
+    .planbar, .veh-legend, table.plan td.veh span, table.plan td.time {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     header.app .sub { display: none; }
     .printhead {
       display: block;
@@ -937,6 +1055,7 @@
         <button type="button" data-view="map" aria-pressed="true">Karte</button>
         <button type="button" data-view="list" aria-pressed="false">Liste</button>
         <button type="button" data-view="schema" aria-pressed="false">Schema</button>
+        <button type="button" data-view="plan" aria-pressed="false">Tagesfahrplan</button>
       </div>
     </div>
   </div>
@@ -997,6 +1116,35 @@
       </div>
       <div id="schemaBox"></div>
     </div>
+  </div>
+
+  <!-- Tagesfahrplan: alle Abfahrten im Takt mit Fahrzeugzuordnung -->
+  <div class="table" id="viewPlan" hidden>
+    <div class="planbar">
+      <label class="field">
+        Betriebsbeginn
+        <input id="opStart" type="time" value="04:30" step="60">
+      </label>
+      <label class="field">
+        Betriebsende
+        <input id="opEnd" type="time" value="23:30" step="60">
+      </label>
+      <span class="planinfo" id="planInfo"></span>
+    </div>
+    <div class="veh-legend" id="planLegend" hidden></div>
+    <div class="empty" id="planEmpty" hidden></div>
+    <table class="sheet plan" id="planTable" hidden>
+      <thead>
+        <tr>
+          <th>Abfahrt</th>
+          <th>Richtung</th>
+          <th>Von → nach</th>
+          <th>Ankunft</th>
+          <th class="r">Fahrzeug</th>
+        </tr>
+      </thead>
+      <tbody id="planBody"></tbody>
+    </table>
   </div>
 
   <section class="summary" aria-live="polite">
@@ -2077,6 +2225,14 @@
      unten nach oben, dazwischen an beiden Enden ein Wendeknoten.
      ================================================================== */
 
+  var planBody = document.getElementById("planBody");
+  var planLegend = document.getElementById("planLegend");
+  var planEmpty = document.getElementById("planEmpty");
+  var planTable = document.getElementById("planTable");
+  var planInfo = document.getElementById("planInfo");
+  var opStartInput = document.getElementById("opStart");
+  var opEndInput = document.getElementById("opEnd");
+
   var SVGNS = "http://www.w3.org/2000/svg";
 
   // Als Präsentationsattribut werden feste Farbwerte gesetzt; die
@@ -2218,6 +2374,221 @@
     if (!loopIsClosed(t)) {
       schemaHint.textContent = "Linie nicht geschlossen – oben treffen sich zwei verschiedene Orte.";
     }
+  }
+
+  /* ==================================================================
+     Tagesfahrplan mit Fahrzeugzuordnung
+
+     Aus Betriebszeit und Takt entstehen die Hinfahrt-Abfahrten, jede
+     zieht ihre Rückfahrt nach Fahrzeit und Wendezeit nach sich. Die
+     Fahrzeuge werden reihum vergeben: bei N Fahrzeugen fährt jedes
+     wieder nach N × Takt, und N ist so gewählt, dass das mindestens
+     die Umlaufzeit ist – das Fahrzeug ist also zurück, bevor es dran
+     ist, genau wie auf einer Wagenkarte.
+     ================================================================== */
+
+  // Erste fünf Farben wie in der bestehenden Excel-Wagenkarte.
+  var VEHICLE_COLORS = [
+    "#EA9999", "#FFE599", "#9FC5E8", "#B6D7A8", "#B4A7D6",
+    "#F9CB9C", "#A2C4C9", "#D5A6BD", "#D9D2E9", "#C9DAF8",
+    "#FCE5CD", "#D0E0E3"
+  ];
+
+  var MAX_TRIPS = 800;
+
+  function vehicleColor(vehicle) {
+    return VEHICLE_COLORS[(vehicle - 1) % VEHICLE_COLORS.length];
+  }
+
+  // "04:30" -> Sekunden seit Mitternacht; leer oder ungültig -> null
+  function parseTimeOfDay(raw) {
+    var match = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(raw || ""));
+    if (!match) { return null; }
+    var h = parseInt(match[1], 10);
+    var m = parseInt(match[2], 10);
+    if (isNaN(h) || isNaN(m) || h > 47 || m > 59) { return null; }
+    return h * 3600 + m * 60;
+  }
+
+  // Betriebszeiten laufen über Mitternacht hinaus weiter: 24:15 statt 00:15.
+  function hhmm(seconds) {
+    var total = Math.round(seconds / 60);
+    var h = Math.floor(total / 60);
+    var m = total - h * 60;
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function buildSchedule() {
+    var out = dirs.out.entries;
+    var back = dirs.back.entries;
+
+    if (out.length < 2 || back.length < 2) {
+      return { error: "Für den Fahrplan braucht es Hin- und Rückfahrt mit je mindestens zwei Haltestellen." };
+    }
+
+    var takt = taktMinutes();
+    if (takt <= 0) {
+      return { error: "Für den Fahrplan wird ein Takt größer als null gebraucht." };
+    }
+
+    var startSec = parseTimeOfDay(opStartInput.value);
+    var endSec = parseTimeOfDay(opEndInput.value);
+    if (startSec === null || endSec === null) {
+      return { error: "Betriebsbeginn und Betriebsende als Uhrzeit eintragen." };
+    }
+    if (endSec <= startSec) { endSec += 86400; }      // Betrieb über Mitternacht
+
+    var tOut = totalsFor(dirs.out);
+    var tBack = totalsFor(dirs.back);
+    var wendeEndSec = wendeSeconds(wendeEndInput);
+    var wendeStartSec = wendeSeconds(wendeStartInput);
+    var umlaufSec = tOut.totalSeconds + wendeEndSec + tBack.totalSeconds + wendeStartSec;
+    var taktSec = Math.round(takt * 60);
+    var vehicles = Math.ceil(umlaufSec / taktSec);
+
+    if (vehicles < 1) {
+      return { error: "Ohne Fahrzeiten lässt sich kein Fahrplan bilden – zuerst Fahrzeiten eintragen." };
+    }
+
+    // Ankunft am Ziel: der Aufenthalt der Endhaltestelle gehört schon zur
+    // Standzeit dort und zählt deshalb nicht zur Fahrt bis zur Ankunft.
+    var outRun = tOut.totalSeconds - out[out.length - 1].dwell;
+    var backRun = tBack.totalSeconds - back[back.length - 1].dwell;
+
+    var trips = [];
+    var truncated = false;
+    var index = 0;
+
+    for (var t = startSec; t <= endSec; t += taktSec) {
+      var vehicle = (index % vehicles) + 1;
+      var backDeparture = t + tOut.totalSeconds + wendeEndSec;
+
+      trips.push({ time: t, dir: "out", vehicle: vehicle, arrive: t + outRun });
+      trips.push({ time: backDeparture, dir: "back", vehicle: vehicle,
+                   arrive: backDeparture + backRun });
+
+      index++;
+      if (trips.length >= MAX_TRIPS) { truncated = true; break; }
+    }
+
+    trips.sort(function (a, b) {
+      if (a.time !== b.time) { return a.time - b.time; }
+      if (a.dir !== b.dir) { return a.dir === "out" ? -1 : 1; }
+      return a.vehicle - b.vehicle;
+    });
+
+    return {
+      trips: trips,
+      vehicles: vehicles,
+      runs: index,
+      taktSec: taktSec,
+      umlaufSec: umlaufSec,
+      bufferSec: vehicles * taktSec - umlaufSec,
+      startSec: startSec,
+      endSec: endSec,
+      truncated: truncated,
+      missing: tOut.missing + tBack.missing,
+      from: nameOf(out[0]),
+      to: nameOf(out[out.length - 1]),
+      backFrom: nameOf(back[0]),
+      backTo: nameOf(back[back.length - 1])
+    };
+  }
+
+  function renderPlan() {
+    planBody.textContent = "";
+    planLegend.textContent = "";
+
+    var plan = buildSchedule();
+
+    if (plan.error) {
+      planEmpty.textContent = plan.error;
+      planEmpty.hidden = false;
+      planLegend.hidden = true;
+      planTable.hidden = true;
+      planInfo.textContent = "";
+      return;
+    }
+
+    planEmpty.hidden = true;
+    planLegend.hidden = false;
+    planTable.hidden = false;
+
+    var counts = [];
+    var lastHour = -1;
+
+    plan.trips.forEach(function (trip) {
+      counts[trip.vehicle] = (counts[trip.vehicle] || 0) + 1;
+
+      var tr = document.createElement("tr");
+      var hour = Math.floor(trip.time / 3600);
+      if (hour !== lastHour) { tr.className = "newhour"; lastHour = hour; }
+
+      var time = document.createElement("td");
+      time.className = "time";
+      time.style.borderLeftColor = vehicleColor(trip.vehicle);
+      time.textContent = hhmm(trip.time);
+      if (trip.time > plan.endSec) {
+        var late = document.createElement("span");
+        late.className = "late";
+        late.textContent = " nach Betriebsschluss";   // führendes Leerzeichen fürs Kopieren
+        time.appendChild(late);
+      }
+      tr.appendChild(time);
+
+      var dir = document.createElement("td");
+      var dirSpan = document.createElement("span");
+      dirSpan.className = trip.dir === "out" ? "dir-out" : "dir-back";
+      dirSpan.textContent = trip.dir === "out" ? "Hinfahrt" : "Rückfahrt";
+      dir.appendChild(dirSpan);
+      tr.appendChild(dir);
+
+      var route = document.createElement("td");
+      route.className = "route";
+      route.textContent = trip.dir === "out"
+        ? plan.from + " → " + plan.to
+        : plan.backFrom + " → " + plan.backTo;
+      tr.appendChild(route);
+
+      var arrive = document.createElement("td");
+      arrive.className = "arr";
+      arrive.textContent = hhmm(trip.arrive);
+      tr.appendChild(arrive);
+
+      var veh = document.createElement("td");
+      veh.className = "veh";
+      var tag = document.createElement("span");
+      tag.style.background = vehicleColor(trip.vehicle);
+      tag.textContent = "Fahrzeug " + trip.vehicle;
+      veh.appendChild(tag);
+      tr.appendChild(veh);
+
+      planBody.appendChild(tr);
+    });
+
+    for (var v = 1; v <= plan.vehicles; v++) {
+      var chip = document.createElement("span");
+      chip.className = "veh-chip";
+      var swatch = document.createElement("i");
+      swatch.style.background = vehicleColor(v);
+      chip.appendChild(swatch);
+      chip.appendChild(document.createTextNode(
+        "Fahrzeug " + v + " · " + (counts[v] || 0) + " Fahrten"));
+      planLegend.appendChild(chip);
+    }
+
+    var info = [
+      plan.runs + " " + plural(plan.runs, "Umlauf", "Umläufe") +
+        " ab " + hhmm(plan.startSec) + " im " + num(plan.taktSec / 60) + "-Minuten-Takt",
+      plan.vehicles + " " + plural(plan.vehicles, "Fahrzeug", "Fahrzeuge"),
+      "jedes wieder nach " + clock(plan.vehicles * plan.taktSec) +
+        " (Umlauf " + clock(plan.umlaufSec) + ", Puffer " + clock(plan.bufferSec) + ")"
+    ];
+    if (plan.truncated) { info.push("Liste bei " + MAX_TRIPS + " Fahrten gekürzt"); }
+    if (plan.missing > 0) {
+      info.push("⚠ " + plan.missing + " Teilstrecken ohne Fahrzeit – Zeiten zu kurz");
+    }
+    planInfo.textContent = info.join("  ·  ");
   }
 
   /* ==================================================================
@@ -2594,9 +2965,10 @@
 
     renderUmlauf(tOut, tBack);
 
-    // Das Schema zeigt Fahrzeiten, Aufenthalte und Wendezeiten, hängt also
-    // an denselben Werten wie die Zusammenfassung.
+    // Schema und Tagesfahrplan hängen an denselben Werten wie die
+    // Zusammenfassung und werden mit ihr neu gezeichnet.
     if (activeView === "schema") { renderSchema(); }
+    if (activeView === "plan") { renderPlan(); }
 
     printHead.textContent = "";
     var lineLabel = lineInput.value.trim();
@@ -2726,6 +3098,7 @@
   var viewMap = document.getElementById("viewMap");
   var viewList = document.getElementById("viewList");
   var viewSchema = document.getElementById("viewSchema");
+  var viewPlan = document.getElementById("viewPlan");
   var mapCard = document.getElementById("mapCard");
 
   function clearSheet() {
@@ -2746,9 +3119,11 @@
       schemaBox.textContent = "";
       renderSheet();
     } else {
+      // Schema und Tagesfahrplan haben keine Eingabefelder je Haltestelle.
       list.textContent = "";
       clearSheet();
       entries().forEach(function (entry) { entry.ui = {}; });
+      if (activeView === "plan") { planBody.textContent = ""; }
     }
     refreshRows();
   }
@@ -2787,6 +3162,7 @@
     viewMap.hidden = key !== "map";
     viewList.hidden = key !== "list";
     viewSchema.hidden = key !== "schema";
+    viewPlan.hidden = key !== "plan";
 
     renderBody();
     renderSummary();
@@ -2829,6 +3205,10 @@
   });
 
   noTaktInput.addEventListener("change", renderSummary);
+
+  [opStartInput, opEndInput].forEach(function (input) {
+    input.addEventListener("input", renderSummary);
+  });
 
   // Hebt die Wende an der Endhaltestelle genau um den fehlenden Betrag an.
   btnTaktrein.addEventListener("click", function () {
