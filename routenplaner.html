@@ -896,6 +896,97 @@
   svg.bild .stoppct { font-size: 9.5px; fill: var(--muted-2); }
   svg.bild .endmark { font-size: 10px; font-weight: 600; fill: var(--warn); }
 
+  /* ---------- Angeheftete Haltestelle ---------- */
+
+  .pinned {
+    border-bottom: 1px solid var(--line);
+    background: #fbfcfd;
+  }
+
+  .pin-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 9px 4px;
+  }
+
+  .pin-title { font-weight: 600; font-size: 12.5px; }
+
+  .pin-dwell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 0 9px 8px;
+  }
+
+  .pin-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .pin-group button {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  input.pin-secs {
+    width: 58px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 2px 5px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+    background: var(--panel);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input.pin-secs:focus { outline: none; border-color: var(--accent); }
+  input.pin-secs.idle { color: var(--muted-2); background: var(--panel-alt); }
+
+  .starcol { width: 30px; text-align: center !important; }
+
+  table.conn.compact td:nth-child(2),
+  table.conn.compact td:nth-child(3),
+  table.conn.compact td:nth-child(4) { white-space: nowrap; }
+
+  button.starbtn {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--muted-2);
+    cursor: pointer;
+  }
+
+  button.starbtn[aria-pressed="true"] { color: #c9a227; }
+  button.starbtn:hover { color: var(--accent); background: none; }
+
+  table.conn tr.starred td { background: #fffdf3; }
+
+  button.pinbtn {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--muted);
+  }
+
+  button.pinbtn[aria-pressed="true"] { color: var(--accent); border-color: #b9c3cd; }
+
+  .conn-legend .help { cursor: help; text-decoration: underline dotted; }
+  .conn-legend .starfilter { margin-left: auto; }
+  table.conn th.help { cursor: help; }
+
   /* ---------- Verschiebung der Abfahrtsminuten ---------- */
 
   .shiftbar {
@@ -1071,6 +1162,14 @@
   }
 
   table.conn td.wait b { font-weight: 700; }
+
+  table.conn td.wait i.when {
+    display: block;
+    font-style: normal;
+    font-size: 10px;
+    opacity: 0.85;
+    white-space: nowrap;
+  }
 
   table.conn td.wait em {
     font-style: normal;
@@ -1578,7 +1677,8 @@
           <th>Koordinaten</th>
           <th class="r">Fahrzeit zur nächsten</th>
           <th class="r">Aufenthalt</th>
-          <th class="r">Ab Start</th>
+          <th class="r">An ab Start</th>
+          <th class="r">Ab ab Start</th>
         </tr>
       </thead>
       <tbody id="sheetBody"></tbody>
@@ -1672,6 +1772,7 @@
 
     <div class="conn-editor" id="connEditor"></div>
     <div class="shiftbar" id="shiftConn"></div>
+    <div class="pinned" id="connPinned" hidden></div>
     <div class="empty" id="connEmpty" hidden></div>
     <div id="connTables"></div>
   </div>
@@ -3064,6 +3165,14 @@
       dwellCell.appendChild(dwellWrap);
       tr.appendChild(dwellCell);
 
+      // Getrennt ausgewiesen: sonst steckt der Aufenthalt einer
+      // Haltestelle im Sprung davor und wirkt wie eine Pause an der
+      // vorherigen Station.
+      var arrive = document.createElement("td");
+      arrive.className = "r run";
+      tr.appendChild(arrive);
+      entry.ui.arrive = arrive;
+
       var run = document.createElement("td");
       run.className = "r run";
       tr.appendChild(run);
@@ -3085,6 +3194,8 @@
     var fHalt = document.createElement("td");
     fHalt.className = "r";
     foot.appendChild(fHalt);
+
+    foot.appendChild(document.createElement("td"));   // Spalte "An ab Start"
 
     var fSum = document.createElement("td");
     fSum.className = "r";
@@ -3131,6 +3242,7 @@
   var btnBildFull = document.getElementById("btnBildFull");
   var shiftTop = document.getElementById("shiftTop");
   var shiftConn = document.getElementById("shiftConn");
+  var connPinned = document.getElementById("connPinned");
   var connEditor = document.getElementById("connEditor");
   var connTables = document.getElementById("connTables");
   var connEmpty = document.getElementById("connEmpty");
@@ -3427,7 +3539,8 @@
           connections: (place.connections || []).map(function (conn) {
             return {
               id: conn.id, name: conn.name, hint: conn.hint,
-              takt: conn.takt, anchor: conn.anchor, rel: conn.rel
+              takt: conn.takt, anchor: conn.anchor, rel: conn.rel,
+              starred: !!conn.starred
             };
           })
         };
@@ -3471,7 +3584,8 @@
             hint: conn.hint || "",
             takt: typeof conn.takt === "number" ? conn.takt : 20,
             anchor: typeof conn.anchor === "number" ? conn.anchor : 0,
-            rel: conn.rel || "both"
+            rel: conn.rel || "both",
+            starred: !!conn.starred
           };
         })
       };
@@ -3731,7 +3845,8 @@
       hint: "",
       takt: 20,
       anchor: 0,
-      rel: "both"          // "an" | "ab" | "both"
+      rel: "both",         // "an" | "ab" | "both"
+      starred: false       // wichtige Anschlüsse, höchstens fünf
     };
   }
 
@@ -4647,7 +4762,7 @@
         });
 
         var select = document.createElement("select");
-        [["both", "beide Richtungen"], ["an", "nur meine Ankünfte"], ["ab", "nur meine Abfahrten"]]
+        [["both", "beides"], ["an", "nur Zubringer"], ["ab", "nur Abbringer"]]
           .forEach(function (pair) {
             var option = document.createElement("option");
             option.value = pair[0];
@@ -4707,7 +4822,7 @@
   // Aus vielen gleichartigen Übergängen den kennzeichnenden Wert und die
   // Bandbreite gewinnen - bei festem Takt wiederholt sich das Bild, nur
   // Rundung lässt es leicht schwanken.
-  function summarizeOffsets(values) {
+  function summarizeOffsets(values, sample) {
     if (values.length === 0) { return null; }
 
     var minutes = values.map(function (value) { return Math.round(value / 60); });
@@ -4733,7 +4848,8 @@
       high: high,
       spread: low !== high,
       count: values.length,
-      worst: Math.min.apply(null, values)
+      worst: Math.min.apply(null, values),
+      sample: sample || null
     };
   }
 
@@ -4741,7 +4857,7 @@
     return (minutes > 0 ? "+" : (minutes < 0 ? "−" : "±")) + Math.abs(minutes);
   }
 
-  function offsetCell(summary) {
+  function offsetCell(summary, connName) {
     var td = document.createElement("td");
     td.className = "wait";
     var box = document.createElement("span");
@@ -4765,15 +4881,239 @@
       box.appendChild(span);
     }
 
+    // Ausgeschriebene Zeiten der Beispielfahrt - erspart das Kopfrechnen.
+    var sentence = "";
+    if (summary.sample) {
+      var when = document.createElement("i");
+      when.className = "when";
+      when.textContent = " nächste " + hhmm(summary.sample.next) +
+        " · letzte " + hhmm(summary.sample.prev);
+      box.appendChild(when);
+
+      sentence = " Bei meiner Fahrt um " + hhmm(summary.sample.myTime) + ": nächste " +
+        connName + " um " + hhmm(summary.sample.next) + ", letzte ist um " +
+        hhmm(summary.sample.prev) + " losgefahren.";
+    }
+
     box.title = summary.count + " Übergänge am Tag" +
       (summary.spread
         ? ", meist " + signed(summary.typical) + " Min., Bandbreite " +
           signed(summary.low) + " bis " + signed(summary.high) + " Min."
         : ", durchgehend " + signed(summary.typical) + " Min.") +
-      (summary.typical < 0 ? " – der Anschluss ist weg." : "");
+      (summary.typical < 0 ? " – der Anschluss ist weg." : "") + sentence;
 
     td.appendChild(box);
     return td;
+  }
+
+  var MAX_STARS = 5;
+  var onlyStarred = false;
+  var pinnedPlaceId = null;
+
+  // Zubringer: mein Bus kommt an, die Fahrgäste steigen in den Anschluss.
+  // Abbringer: mein Bus fährt ab, die Fahrgäste kamen mit dem Anschluss.
+  var CONN_KINDS = [
+    { dir: "out", kind: "an", label: "Hinfahrt Zubringer" },
+    { dir: "out", kind: "ab", label: "Hinfahrt Abbringer" },
+    { dir: "back", kind: "an", label: "Rückfahrt Zubringer" },
+    { dir: "back", kind: "ab", label: "Rückfahrt Abbringer" }
+  ];
+
+  var KIND_HELP = {
+    an: "Zubringer: mein Bus kommt an, die Fahrgäste steigen in den Anschluss um. " +
+        "Plus heißt so viel Luft bis zu dessen Abfahrt.",
+    ab: "Abbringer: mein Bus fährt ab, die Fahrgäste sind mit dem Anschluss gekommen. " +
+        "Plus heißt so viel Luft seit dessen Ankunft."
+  };
+
+  function starCount() {
+    var count = 0;
+    connPlaces().forEach(function (place) {
+      connectionsOf(place).forEach(function (conn) { if (conn.starred) { count++; } });
+    });
+    return count;
+  }
+
+  function offsetsFor(conn, events, dir, kind) {
+    var values = [];
+    var sample = null;
+
+    events.forEach(function (event) {
+      if (event.dir !== dir || event.kind !== kind) { return; }
+      var offset = connectionOffset(conn, event.time, kind === "an");
+      if (offset === null) { return; }
+      values.push(offset);
+      if (!sample) {
+        sample = {
+          myTime: event.time,
+          next: connectionTime(conn, event.time, true),
+          prev: connectionTime(conn, event.time, false)
+        };
+      }
+    });
+
+    return summarizeOffsets(values, sample);
+  }
+
+  // Angeheftete Haltestelle: beide Richtungen nebeneinander, dazu die
+  // Aufenthaltszeit je Richtung direkt zum Verstellen. Jede Änderung
+  // rechnet die Übergänge sofort neu.
+  function renderPinned(plan) {
+    connPinned.textContent = "";
+
+    var place = null;
+    connPlaces().forEach(function (candidate) {
+      if (candidate.id === pinnedPlaceId) { place = candidate; }
+    });
+
+    if (!place || !plan) {
+      connPinned.hidden = true;
+      return;
+    }
+
+    connPinned.hidden = false;
+
+    var head = document.createElement("div");
+    head.className = "pin-head";
+    var title = document.createElement("span");
+    title.className = "pin-title";
+    title.textContent = "Angeheftet: " + (place.name.trim() || place.fallback);
+    head.appendChild(title);
+
+    var loose = document.createElement("button");
+    loose.type = "button";
+    loose.textContent = "Lösen";
+    loose.addEventListener("click", function () {
+      pinnedPlaceId = null;
+      renderConnTables();
+    });
+    head.appendChild(loose);
+    connPinned.appendChild(head);
+
+    // Aufenthalt je Richtung - derselbe Ort kann in Hin und Rück
+    // unterschiedlich lange halten.
+    var dwellRow = document.createElement("div");
+    dwellRow.className = "pin-dwell";
+
+    DIR_KEYS.forEach(function (key) {
+      var entry = null;
+      dirs[key].entries.forEach(function (candidate) {
+        if (resolvePlace(candidate.place) === place && !entry) { entry = candidate; }
+      });
+      if (!entry) { return; }
+
+      var group = document.createElement("span");
+      group.className = "pin-group";
+
+      var label = document.createElement("span");
+      label.className = "lead";
+      label.textContent = dirs[key].label;
+      group.appendChild(label);
+
+      var isFirst = dirs[key].entries.length > 0 &&
+        resolvePlace(dirs[key].entries[0].place) === place;
+
+      var field = document.createElement("input");
+      field.type = "number";
+      field.min = "0";
+      field.step = "5";
+      field.className = "pin-secs";
+      field.value = String(entry.dwell);
+      field.title = isFirst
+        ? "Am Startpunkt dieser Richtung zählt der Aufenthalt nicht mit"
+        : "Aufenthalt in Sekunden – wirkt sofort auf alle Übergänge";
+      if (isFirst) { field.classList.add("idle"); }
+
+      var apply = function (seconds) {
+        entry.dwell = Math.max(0, Math.round(seconds));
+        field.value = String(entry.dwell);
+        refreshRows();
+        renderSummary();
+      };
+
+      trackEdit(field, "Aufenthalt geändert");
+      field.addEventListener("input", function () {
+        var parsed = parseInt(field.value, 10);
+        entry.dwell = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+        refreshRows();
+        renderSummary();
+      });
+
+      var minus = document.createElement("button");
+      minus.type = "button";
+      minus.textContent = "−";
+      minus.title = "30 Sekunden weniger";
+      minus.addEventListener("click", function () {
+        rememberUndo("Aufenthalt geändert");
+        apply(entry.dwell - 30);
+      });
+
+      var plus = document.createElement("button");
+      plus.type = "button";
+      plus.textContent = "+";
+      plus.title = "30 Sekunden mehr";
+      plus.addEventListener("click", function () {
+        rememberUndo("Aufenthalt geändert");
+        apply(entry.dwell + 30);
+      });
+
+      group.appendChild(minus);
+      group.appendChild(field);
+      group.appendChild(document.createTextNode("s"));
+      group.appendChild(plus);
+      dwellRow.appendChild(group);
+    });
+
+    connPinned.appendChild(dwellRow);
+
+    // Übergänge dieser einen Haltestelle, beide Richtungen nebeneinander
+    var events = eventsAtPlace(place, plan);
+    var list = connectionsOf(place);
+
+    var table = document.createElement("table");
+    table.className = "sheet conn compact";
+
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    var first = document.createElement("th");
+    first.textContent = "Anschluss";
+    headRow.appendChild(first);
+    CONN_KINDS.forEach(function (kind) {
+      var th = document.createElement("th");
+      th.className = "r conncol help";
+      th.textContent = kind.label;
+      th.title = KIND_HELP[kind.kind];
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    list.forEach(function (conn, index) {
+      var tr = document.createElement("tr");
+
+      var nameCell = document.createElement("td");
+      nameCell.textContent = connLabel(conn, index);
+      var sub = document.createElement("span");
+      sub.className = "legnote";
+      sub.textContent = conn.takt > 0
+        ? "  " + num(conn.takt) + "' ab :" + (conn.anchor < 10 ? "0" : "") + conn.anchor
+        : "  ohne Takt";
+      nameCell.appendChild(sub);
+      tr.appendChild(nameCell);
+
+      CONN_KINDS.forEach(function (kind) {
+        var relevant = conn.rel === "both" || conn.rel === kind.kind;
+        if (!relevant || !(conn.takt > 0)) { tr.appendChild(offsetCell(null)); return; }
+        tr.appendChild(offsetCell(
+          offsetsFor(conn, events, kind.dir, kind.kind), connLabel(conn, index)));
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    connPinned.appendChild(table);
   }
 
   function renderConnTables() {
@@ -4784,6 +5124,7 @@
       connEmpty.textContent = plan.error;
       connEmpty.hidden = false;
       connInfo.textContent = "";
+      renderPinned(null);
       return;
     }
 
@@ -4795,20 +5136,15 @@
       connEmpty.textContent = "Noch keine Anschlüsse hinterlegt – oben je Haltestelle anlegen.";
       connEmpty.hidden = false;
       connInfo.textContent = "";
+      renderPinned(null);
       return;
     }
 
     connEmpty.hidden = true;
+    renderPinned(plan);
 
-    var KINDS = [
-      { dir: "out", kind: "an", label: "Hinfahrt an" },
-      { dir: "out", kind: "ab", label: "Hinfahrt ab" },
-      { dir: "back", kind: "an", label: "Rückfahrt an" },
-      { dir: "back", kind: "ab", label: "Rückfahrt ab" }
-    ];
-
-    var legend = document.createElement("div");
-    legend.className = "conn-legend";
+    var bar = document.createElement("div");
+    bar.className = "conn-legend";
     [["w-bad", "verpasst oder unter Minimum"], ["w-tight", "knapp"], ["w-good", "komfortabel"]]
       .forEach(function (pair) {
         var key = document.createElement("span");
@@ -4817,43 +5153,104 @@
         swatch.className = pair[0];
         key.appendChild(swatch);
         key.appendChild(document.createTextNode(pair[1]));
-        legend.appendChild(key);
+        bar.appendChild(key);
       });
+
     var explain = document.createElement("span");
-    explain.className = "key";
-    explain.textContent = "Plus = so viel Luft beim Übergang, Minus = um so viel verpasst";
-    legend.appendChild(explain);
-    connTables.appendChild(legend);
+    explain.className = "key help";
+    explain.textContent = "Zubringer / Abbringer?";
+    explain.title = KIND_HELP.an + "\n\n" + KIND_HELP.ab;
+    bar.appendChild(explain);
+
+    var stars = starCount();
+    var filter = document.createElement("label");
+    filter.className = "toggle starfilter";
+    var box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = onlyStarred;
+    box.disabled = stars === 0;
+    box.addEventListener("change", function () {
+      onlyStarred = box.checked;
+      renderConnTables();
+    });
+    filter.appendChild(box);
+    filter.appendChild(document.createTextNode(
+      "Nur markierte (" + stars + " von " + MAX_STARS + ")"));
+    bar.appendChild(filter);
+
+    connTables.appendChild(bar);
 
     var table = document.createElement("table");
     table.className = "sheet conn compact";
 
     var thead = document.createElement("thead");
     var headRow = document.createElement("tr");
+
+    var starHead = document.createElement("th");
+    starHead.className = "starcol";
+    starHead.textContent = "★";
+    starHead.title = "Wichtige Anschlüsse markieren, höchstens " + MAX_STARS;
+    headRow.appendChild(starHead);
+
     ["Haltestelle", "Anschluss", "gilt für"].forEach(function (text) {
       var th = document.createElement("th");
       th.textContent = text;
       headRow.appendChild(th);
     });
-    KINDS.forEach(function (kind) {
+
+    CONN_KINDS.forEach(function (kind) {
       var th = document.createElement("th");
-      th.className = "r conncol";
+      th.className = "r conncol help";
       th.textContent = kind.label;
+      th.title = KIND_HELP[kind.kind];
       headRow.appendChild(th);
     });
+
+    var pinHead = document.createElement("th");
+    pinHead.className = "r";
+    pinHead.textContent = "";
+    headRow.appendChild(pinHead);
+
     thead.appendChild(headRow);
     table.appendChild(thead);
 
     var tbody = document.createElement("tbody");
     var counts = { good: 0, tight: 0, bad: 0 };
     var rows = 0;
+    var hidden = 0;
 
     withConns.forEach(function (place) {
       var events = eventsAtPlace(place, plan);
 
       connectionsOf(place).forEach(function (conn, index) {
+        if (onlyStarred && !conn.starred) { hidden++; return; }
+
         var tr = document.createElement("tr");
+        if (conn.starred) { tr.className = "starred"; }
         rows++;
+
+        var starCell = document.createElement("td");
+        starCell.className = "starcol";
+        var star = document.createElement("button");
+        star.type = "button";
+        star.className = "starbtn";
+        star.textContent = conn.starred ? "★" : "☆";
+        star.setAttribute("aria-pressed", conn.starred ? "true" : "false");
+        star.title = conn.starred
+          ? "Markierung entfernen"
+          : "Als wichtig markieren (höchstens " + MAX_STARS + ")";
+        star.addEventListener("click", function () {
+          if (!conn.starred && starCount() >= MAX_STARS) {
+            window.alert("Es lassen sich höchstens " + MAX_STARS +
+                         " Anschlüsse markieren.\n\n" +
+                         "Nimm zuerst eine andere Markierung heraus.");
+            return;
+          }
+          conn.starred = !conn.starred;
+          renderConnTables();
+        });
+        starCell.appendChild(star);
+        tr.appendChild(starCell);
 
         var stopCell = document.createElement("td");
         stopCell.className = "name";
@@ -4872,26 +5269,19 @@
 
         var relCell = document.createElement("td");
         relCell.className = "legnote";
-        relCell.textContent = conn.rel === "both" ? "beide"
-          : (conn.rel === "an" ? "meine Ankünfte" : "meine Abfahrten");
+        relCell.textContent = conn.rel === "both" ? "beides"
+          : (conn.rel === "an" ? "nur Zubringer" : "nur Abbringer");
         tr.appendChild(relCell);
 
-        KINDS.forEach(function (kind) {
+        CONN_KINDS.forEach(function (kind) {
           var relevant = conn.rel === "both" || conn.rel === kind.kind;
           if (!relevant || !(conn.takt > 0)) {
             tr.appendChild(offsetCell(null));
             return;
           }
 
-          var values = [];
-          events.forEach(function (event) {
-            if (event.dir !== kind.dir || event.kind !== kind.kind) { return; }
-            var offset = connectionOffset(conn, event.time, kind.kind === "an");
-            if (offset !== null) { values.push(offset); }
-          });
-
-          var summary = summarizeOffsets(values);
-          tr.appendChild(offsetCell(summary));
+          var summary = offsetsFor(conn, events, kind.dir, kind.kind);
+          tr.appendChild(offsetCell(summary, connLabel(conn, index)));
 
           if (summary) {
             var cls = offsetClass(summary.typical * 60);
@@ -4900,6 +5290,24 @@
             else { counts.bad++; }
           }
         });
+
+        var pinCell = document.createElement("td");
+        pinCell.className = "r";
+        var pin = document.createElement("button");
+        pin.type = "button";
+        pin.className = "pinbtn";
+        var isPinned = pinnedPlaceId === place.id;
+        pin.textContent = isPinned ? "◆" : "◇";
+        pin.setAttribute("aria-pressed", isPinned ? "true" : "false");
+        pin.title = isPinned
+          ? "Haltestelle wieder lösen"
+          : "Haltestelle anheften – beide Richtungen mit Aufenthalt zum Ausprobieren";
+        pin.addEventListener("click", function () {
+          pinnedPlaceId = isPinned ? null : place.id;
+          renderConnTables();
+        });
+        pinCell.appendChild(pin);
+        tr.appendChild(pinCell);
 
         tbody.appendChild(tr);
       });
@@ -4911,7 +5319,8 @@
     var cells = counts.good + counts.tight + counts.bad;
     connInfo.textContent = rows + " " +
       plural(rows, "Kombination", "Kombinationen") + " an " + withConns.length + " " +
-      plural(withConns.length, "Haltestelle", "Haltestellen") + "  ·  " +
+      plural(withConns.length, "Haltestelle", "Haltestellen") +
+      (hidden > 0 ? " (" + hidden + " ausgeblendet)" : "") + "  ·  " +
       cells + " bewertete " + plural(cells, "Übergang", "Übergänge") + ": " +
       counts.good + " komfortabel, " + counts.tight + " knapp, " +
       counts.bad + " verpasst oder zu knapp";
@@ -5701,8 +6110,10 @@
     rows.forEach(function (entry, i) {
       var ui = entry.ui || {};
 
+      var arriveSeconds = runSeconds;
       if (i > 0) {
-        runSeconds += (entry.minutes === null ? 0 : entry.minutes * 60) + entry.dwell;
+        arriveSeconds = runSeconds + (entry.minutes === null ? 0 : entry.minutes * 60);
+        runSeconds = arriveSeconds + entry.dwell;
       }
 
       if (ui.dwellMin && document.activeElement !== ui.dwellMin) {
@@ -5712,7 +6123,12 @@
         ui.dwellSec.value = String(entry.dwell % 60);
       }
 
-      if (ui.run) { ui.run.textContent = clock(runSeconds); }
+      if (ui.arrive) {
+        ui.arrive.textContent = i === 0 ? "–" : clock(arriveSeconds);
+      }
+      if (ui.run) {
+        ui.run.textContent = (i === rows.length - 1) ? "–" : clock(runSeconds);
+      }
 
       if (ui.input) {
         if (document.activeElement !== ui.input) {
