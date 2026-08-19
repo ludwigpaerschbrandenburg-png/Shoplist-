@@ -972,16 +972,39 @@
 
   table.conn tr.starred td { background: #fffdf3; }
 
-  button.pinbtn {
-    width: 24px;
-    height: 22px;
-    padding: 0;
-    font-size: 11px;
-    line-height: 1;
-    color: var(--muted);
+  td.stopcell {
+    white-space: nowrap;
+    vertical-align: middle;
   }
 
-  button.pinbtn[aria-pressed="true"] { color: var(--accent); border-color: #b9c3cd; }
+  td.stopcell .stopname { margin-right: 7px; }
+
+  button.pinbtn {
+    padding: 1px 7px 1px 5px;
+    font-size: 10px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    vertical-align: baseline;
+  }
+
+  button.pinbtn .pinglyph {
+    font-size: 11px;
+    margin-right: 4px;
+    line-height: 1;
+  }
+
+  button.pinbtn[aria-pressed="true"] {
+    color: var(--text);
+    border-color: #b9c3cd;
+    background: #e8edf2;
+  }
+
+  /* Erste Zeile einer Haltestelle bekommt eine kraeftigere Trennlinie,
+     damit die Kombinationen einer Haltestelle als Block lesbar bleiben. */
+  table.conn tbody tr.groupstart > td { border-top: 1px solid var(--line); }
+  table.conn tbody tr:first-child.groupstart > td { border-top: 0; }
 
   .conn-legend .help { cursor: help; text-decoration: underline dotted; }
   .conn-legend .starfilter { margin-left: auto; }
@@ -1570,6 +1593,11 @@
     }
     input.name { font-weight: 600; }
     .leg { background: #f7f7f7 !important; }
+    /* Auf Papier ist der Anheft-Knopf sinnlos, und leere Sterne sind nur
+       Rauschen - gesetzte Markierungen bleiben dagegen stehen. */
+    button.pinbtn { display: none !important; }
+    button.starbtn { border: 0; color: #000 !important; }
+    button.starbtn[aria-pressed="false"] { visibility: hidden; }
   }
 </style>
 </head>
@@ -4906,7 +4934,7 @@
     return td;
   }
 
-  var MAX_STARS = 5;
+  var MAX_STARS = 15;
   var onlyStarred = false;
   var pinnedPlaceId = null;
 
@@ -5189,7 +5217,8 @@
     var starHead = document.createElement("th");
     starHead.className = "starcol";
     starHead.textContent = "★";
-    starHead.title = "Wichtige Anschlüsse markieren, höchstens " + MAX_STARS;
+    starHead.title = "Je Zeile eine Kombination aus Haltestelle und Anschlusslinie " +
+      "markieren, höchstens " + MAX_STARS;
     headRow.appendChild(starHead);
 
     ["Haltestelle", "Anschluss", "gilt für"].forEach(function (text) {
@@ -5206,11 +5235,6 @@
       headRow.appendChild(th);
     });
 
-    var pinHead = document.createElement("th");
-    pinHead.className = "r";
-    pinHead.textContent = "";
-    headRow.appendChild(pinHead);
-
     thead.appendChild(headRow);
     table.appendChild(thead);
 
@@ -5222,11 +5246,13 @@
     withConns.forEach(function (place) {
       var events = eventsAtPlace(place, plan);
 
+      var firstOfStop = true;
+
       connectionsOf(place).forEach(function (conn, index) {
         if (onlyStarred && !conn.starred) { hidden++; return; }
 
         var tr = document.createElement("tr");
-        if (conn.starred) { tr.className = "starred"; }
+        tr.className = (conn.starred ? "starred" : "") + (firstOfStop ? " groupstart" : "");
         rows++;
 
         var starCell = document.createElement("td");
@@ -5236,9 +5262,9 @@
         star.className = "starbtn";
         star.textContent = conn.starred ? "★" : "☆";
         star.setAttribute("aria-pressed", conn.starred ? "true" : "false");
-        star.title = conn.starred
-          ? "Markierung entfernen"
-          : "Als wichtig markieren (höchstens " + MAX_STARS + ")";
+        star.title = (conn.starred ? "Markierung entfernen" : "Als wichtig markieren") +
+          ": " + (place.name.trim() || place.fallback) + " + " + connLabel(conn, index) +
+          " (höchstens " + MAX_STARS + " Kombinationen)";
         star.addEventListener("click", function () {
           if (!conn.starred && starCount() >= MAX_STARS) {
             window.alert("Es lassen sich höchstens " + MAX_STARS +
@@ -5252,10 +5278,43 @@
         starCell.appendChild(star);
         tr.appendChild(starCell);
 
+        // Der Name und der Anheft-Knopf gehören der Haltestelle und
+        // stehen deshalb nur in ihrer ersten Zeile - der Stern links
+        // gehört dagegen zu jeder Zeile einzeln.
         var stopCell = document.createElement("td");
-        stopCell.className = "name";
-        stopCell.textContent = place.name.trim() || place.fallback;
+        stopCell.className = "name stopcell";
+
+        if (firstOfStop) {
+          var stopName = document.createElement("span");
+          stopName.className = "stopname";
+          stopName.textContent = place.name.trim() || place.fallback;
+          stopCell.appendChild(stopName);
+
+          var isPinned = pinnedPlaceId === place.id;
+          var pin = document.createElement("button");
+          pin.type = "button";
+          pin.className = "pinbtn";
+          pin.setAttribute("aria-pressed", isPinned ? "true" : "false");
+
+          var glyph = document.createElement("span");
+          glyph.className = "pinglyph";
+          glyph.textContent = isPinned ? "◆" : "◇";
+          pin.appendChild(glyph);
+          pin.appendChild(document.createTextNode(isPinned ? "Angeheftet" : "Anheften"));
+
+          pin.title = isPinned
+            ? "Haltestelle wieder lösen"
+            : "Diese Haltestelle anheften – oben erscheint sie mit beiden Richtungen " +
+              "und ihrer Aufenthaltszeit zum Ausprobieren";
+          pin.addEventListener("click", function () {
+            pinnedPlaceId = isPinned ? null : place.id;
+            renderConnTables();
+          });
+          stopCell.appendChild(pin);
+        }
+
         tr.appendChild(stopCell);
+        firstOfStop = false;
 
         var connCell = document.createElement("td");
         connCell.textContent = connLabel(conn, index);
@@ -5290,24 +5349,6 @@
             else { counts.bad++; }
           }
         });
-
-        var pinCell = document.createElement("td");
-        pinCell.className = "r";
-        var pin = document.createElement("button");
-        pin.type = "button";
-        pin.className = "pinbtn";
-        var isPinned = pinnedPlaceId === place.id;
-        pin.textContent = isPinned ? "◆" : "◇";
-        pin.setAttribute("aria-pressed", isPinned ? "true" : "false");
-        pin.title = isPinned
-          ? "Haltestelle wieder lösen"
-          : "Haltestelle anheften – beide Richtungen mit Aufenthalt zum Ausprobieren";
-        pin.addEventListener("click", function () {
-          pinnedPlaceId = isPinned ? null : place.id;
-          renderConnTables();
-        });
-        pinCell.appendChild(pin);
-        tr.appendChild(pinCell);
 
         tbody.appendChild(tr);
       });
