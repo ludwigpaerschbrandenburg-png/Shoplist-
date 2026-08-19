@@ -425,6 +425,29 @@
   .badge.is-start { background: var(--pin-start); }
   .badge.is-end   { background: var(--pin-end); }
 
+  .badge.editable { cursor: text; }
+  .badge.editable:hover { outline: 1px solid var(--accent); outline-offset: 1px; }
+  .badge.editable:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .badge input.posedit {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 2px;
+    padding: 0 1px;
+    text-align: center;
+    font: inherit;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text);
+    background: #fff;
+    -moz-appearance: textfield;
+  }
+
+  .badge input.posedit::-webkit-outer-spin-button,
+  .badge input.posedit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .badge input.posedit:focus { outline: none; }
+
   .badge.is-way {
     background: var(--panel);
     border: 1px solid var(--muted-2);
@@ -845,6 +868,10 @@
   /* ---------- Bildfahrplan ---------- */
 
   .bild-scroll { overflow-x: auto; padding: 8px 0 4px; }
+
+  #viewBild:fullscreen { background: var(--panel); overflow: auto; }
+  #viewBild:fullscreen .bild-scroll { padding: 12px; }
+  #viewBild:-webkit-full-screen { background: var(--panel); overflow: auto; }
 
   .planbar .zoomval {
     display: inline-block;
@@ -1505,7 +1532,7 @@
         <button type="button" data-view="plan" aria-pressed="false">Tagesfahrplan</button>
         <button type="button" data-view="bild" aria-pressed="false">Bildfahrplan</button>
         <button type="button" data-view="conn" aria-pressed="false">Anschlüsse</button>
-        <button type="button" data-view="cmp" aria-pressed="false">Vergleich</button>
+        <button type="button" data-view="cmp" aria-pressed="false">Vergleich &amp; Speichern</button>
       </div>
     </div>
   </div>
@@ -1619,6 +1646,7 @@
         <button id="btnBildIn" type="button" title="Zeitachse strecken">+</button>
         <button id="btnBildReset" type="button" title="Zurück auf 100 %">Zurücksetzen</button>
       </span>
+      <button id="btnBildFull" type="button" title="Bildfahrplan im Vollbild anzeigen">Vollbild</button>
       <span class="planinfo" id="bildInfo"></span>
     </div>
     <div class="veh-legend" id="bildLegend" hidden></div>
@@ -1631,19 +1659,19 @@
     <div class="planbar">
       <label class="field">
         Minimum
-        <input id="connMin" class="takt-in" type="number" min="0" step="1" value="3">
+        <input id="connMin" class="takt-in" type="number" min="0" step="1" value="2">
         Min.
       </label>
       <label class="field">
         Komfortabel ab
-        <input id="connGood" class="takt-in" type="number" min="0" step="1" value="8">
+        <input id="connGood" class="takt-in" type="number" min="0" step="1" value="4">
         Min.
       </label>
       <span class="planinfo" id="connInfo"></span>
     </div>
 
-    <div class="shiftbar" id="shiftConn"></div>
     <div class="conn-editor" id="connEditor"></div>
+    <div class="shiftbar" id="shiftConn"></div>
     <div class="empty" id="connEmpty" hidden></div>
     <div id="connTables"></div>
   </div>
@@ -2248,6 +2276,17 @@
     renderAll();
   }
 
+  // Setzt eine Haltestelle auf eine bestimmte Position; alle
+  // dazwischenliegenden rücken auf.
+  function moveEntryTo(index, target) {
+    var list = entries();
+    var to = Math.max(0, Math.min(list.length - 1, target));
+    if (to === index) { return; }
+    rememberUndo("Position geändert");
+    list.splice(to, 0, list.splice(index, 1)[0]);
+    renderAll();
+  }
+
   function moveEntry(index, delta) {
     var list = entries();
     var target = index + delta;
@@ -2321,23 +2360,61 @@
     });
   }
 
-  // Endpunkte einer Richtung dürfen keine Wegpunkte werden.
-  function canBeWaypoint(place) {
-    return !DIR_KEYS.some(function (key) {
+  // Endpunkte einer Richtung dürfen keine Wegpunkte werden. Geprüft wird
+  // immer die aktuelle Position in beiden Richtungen - eine Haltestelle
+  // kann in der einen mittendrin und in der anderen Endpunkt sein.
+  function blockingDirections(place) {
+    var target = resolvePlace(place);
+    return DIR_KEYS.filter(function (key) {
       var list = dirs[key].entries;
       if (list.length === 0) { return false; }
-      return resolvePlace(list[0].place) === resolvePlace(place) ||
-             resolvePlace(list[list.length - 1].place) === resolvePlace(place);
+      return resolvePlace(list[0].place) === target ||
+             resolvePlace(list[list.length - 1].place) === target;
     });
+  }
+
+  function canBeWaypoint(place) {
+    return blockingDirections(place).length === 0;
+  }
+
+  // Ist die Rückfahrt gegenüber der Hinfahrt veraltet, hilft das
+  // Spiegeln - genau der Fall, wenn eine neu angelegte Haltestelle nur
+  // in der Hinfahrt an ihren Platz geschoben wurde.
+  function mirrorWouldFree(place) {
+    var target = resolvePlace(place);
+    var mirrored = dirs.out.entries.slice().reverse();
+    if (mirrored.length < 2) { return false; }
+    return resolvePlace(mirrored[0].place) !== target &&
+           resolvePlace(mirrored[mirrored.length - 1].place) !== target;
   }
 
   function toggleWaypoint(place) {
     var target = resolvePlace(place);
 
     if (!target.waypoint && !canBeWaypoint(target)) {
-      window.alert("Start- und Endhaltestellen können keine Wegpunkte sein.\n\n" +
-                   "Eine Linie braucht an beiden Enden einen echten Halt.");
-      return;
+      var blocked = blockingDirections(target).map(function (key) { return dirs[key].label; });
+      var label = target.name.trim() || target.fallback;
+
+      // Blockiert nur die Rückfahrt und wäre sie nach dem Spiegeln frei,
+      // dann liegt es an ihrer veralteten Reihenfolge - das lässt sich
+      // hier gleich beheben.
+      if (blocked.length === 1 && blocked[0] === dirs.back.label && mirrorWouldFree(target)) {
+        if (!window.confirm("„" + label + "\" steht in der Hinfahrt mittendrin, " +
+              "ist in der Rückfahrt aber noch Endpunkt – deren Reihenfolge ist " +
+              "gegenüber der Hinfahrt veraltet.\n\n" +
+              "Rückfahrt aus der Hinfahrt spiegeln und die Haltestelle dann " +
+              "zum Wegpunkt machen?")) {
+          return;
+        }
+        mirrorFromOut();
+        if (!canBeWaypoint(target)) { return; }
+      } else {
+        window.alert("„" + label + "\" ist Endpunkt der " + blocked.join(" und der ") +
+                     " und kann deshalb kein Wegpunkt sein.\n\n" +
+                     "Eine Linie braucht an beiden Enden einen echten Halt. " +
+                     "Verschiebe die Haltestelle dort zuerst aus der Endlage.");
+        return;
+      }
     }
 
     rememberUndo(target.waypoint ? "Wegpunkt zurückgewandelt" : "Zu Wegpunkt gemacht");
@@ -2738,9 +2815,48 @@
     li.className = "stop" + (isWaypoint ? " is-waypoint" : "");
 
     var badge = document.createElement("span");
-    badge.className = "badge" + (isWaypoint ? " is-way"
+    badge.className = "badge editable" + (isWaypoint ? " is-way"
       : (isStart ? " is-start" : (isEnd ? " is-end" : "")));
     badge.textContent = isWaypoint ? "·" : String(number);
+    badge.title = "Doppelklick: Position eintippen – die übrigen rücken auf";
+    badge.setAttribute("tabindex", "0");
+
+    // Doppelklick verwandelt die Nummer in ein Eingabefeld.
+    var editPosition = function () {
+      if (badge.querySelector("input")) { return; }
+
+      var field = document.createElement("input");
+      field.type = "number";
+      field.min = "1";
+      field.max = String(total);
+      field.value = String(i + 1);
+      field.className = "posedit";
+      field.setAttribute("aria-label", "Position dieser Haltestelle, 1 bis " + total);
+
+      var finish = function (apply) {
+        var wanted = parseInt(field.value, 10);
+        badge.textContent = isWaypoint ? "·" : String(number);
+        if (apply && !isNaN(wanted)) { moveEntryTo(i, wanted - 1); }
+      };
+
+      field.addEventListener("keydown", function (e) {
+        e.stopPropagation();
+        if (e.key === "Enter") { finish(true); }
+        else if (e.key === "Escape") { finish(false); }
+      });
+      field.addEventListener("blur", function () { finish(false); });
+
+      badge.textContent = "";
+      badge.appendChild(field);
+      field.focus();
+      field.select();
+    };
+
+    badge.addEventListener("dblclick", editPosition);
+    badge.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); editPosition(); }
+    });
+
     li.appendChild(badge);
 
     if (isWaypoint) {
@@ -2795,7 +2911,9 @@
     var wayBtn = iconButton(isWaypoint ? "◉" : "○",
       isWaypoint
         ? "Wieder als Haltestelle führen"
-        : "Als Wegpunkt führen – lenkt nur die Route, zählt nicht als Halt",
+        : (isStart || isEnd
+            ? "Endhaltestellen können keine Wegpunkte sein"
+            : "Als Wegpunkt führen – lenkt nur die Route, zählt nicht als Halt"),
       !isWaypoint && (isStart || isEnd),
       function () { toggleWaypoint(entry.place); });
     wayBtn.className = "waybtn";
@@ -3010,6 +3128,7 @@
   var btnBildReset = document.getElementById("btnBildReset");
   var bildZoomText = document.getElementById("bildZoomText");
   var btnFullscreen = document.getElementById("btnFullscreen");
+  var btnBildFull = document.getElementById("btnBildFull");
   var shiftTop = document.getElementById("shiftTop");
   var shiftConn = document.getElementById("shiftConn");
   var connEditor = document.getElementById("connEditor");
@@ -3408,8 +3527,8 @@
     setValue(opEndInput, data.opEnd, "23:30");
     setValue(bildStartInput, data.opStart, "04:30");
     setValue(bildEndInput, data.opEnd, "23:30");
-    setValue(connMinInput, data.connMin, "3");
-    setValue(connGoodInput, data.connGood, "8");
+    setValue(connMinInput, data.connMin, "2");
+    setValue(connGoodInput, data.connGood, "4");
     noTaktInput.checked = !!data.noTakt;
     shiftOut = Math.round(asNumber(data.shiftOut) || 0);
     shiftBack = Math.round(asNumber(data.shiftBack) || 0);
@@ -4312,9 +4431,15 @@
     if (tMax <= tMin) { tMax = tMin + 3600; }
 
     var PAD_L = 176, PAD_R = 26, PAD_T = 26, PAD_B = 34;
-    var PLOT_H = Math.max(300, 44 * Math.max(2, out.length));
+    // Höhe wächst mit der Zahl der Halte, mindestens aber so weit, dass
+    // die Grafik quer und nicht bandförmig wirkt - gedeckelt, damit ein
+    // ganzer Betriebstag nicht ins Riesenhafte läuft.
+    var PLOT_H = Math.max(340, 60 * Math.max(2, out.length));
     var hours = (tMax - tMin) / 3600;
-    var PLOT_W = Math.max(Math.round(660 * bildZoom), Math.round(hours * 92 * bildZoom));
+    // Breite Zeitachse: die Grafik soll quer liegen, nicht hochkant.
+    var PLOT_W = Math.max(Math.round(1180 * bildZoom), Math.round(hours * 150 * bildZoom));
+    PLOT_H = Math.max(PLOT_H, Math.min(Math.round(PLOT_W / 2.6), 620));
+
     var W = PAD_L + PLOT_W + PAD_R;
     var H = PAD_T + PLOT_H + PAD_B;
 
@@ -5278,8 +5403,8 @@
       taktZiel: "end",
       opStart: startTime,
       opEnd: endTime,
-      connMin: "3",
-      connGood: "8",
+      connMin: "2",
+      connGood: "4",
       places: placeList,
       out: outEntries,
       back: backEntries
@@ -6235,15 +6360,39 @@
   }
 
   function onFullscreenChange() {
-    var active = !!fullscreenElement();
-    btnFullscreen.textContent = active ? "Vollbild verlassen" : "Vollbild";
-    btnFullscreen.title = active
+    var current = fullscreenElement();
+
+    var mapActive = current === mapCard;
+    btnFullscreen.textContent = mapActive ? "Vollbild verlassen" : "Vollbild";
+    btnFullscreen.title = mapActive ? "Vollbild verlassen (Esc)" : "Karte im Vollbild anzeigen";
+
+    var bildActive = current === viewBild;
+    btnBildFull.textContent = bildActive ? "Vollbild verlassen" : "Vollbild";
+    btnBildFull.title = bildActive
       ? "Vollbild verlassen (Esc)"
-      : "Karte im Vollbild anzeigen";
+      : "Bildfahrplan im Vollbild anzeigen";
+
     window.setTimeout(function () { map.invalidateSize(); }, 120);
   }
 
+  function toggleBildFullscreen() {
+    if (fullscreenElement()) {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) { exit.call(document); }
+      return;
+    }
+    var request = viewBild.requestFullscreen || viewBild.webkitRequestFullscreen;
+    if (!request) {
+      window.alert("Der Browser bietet keine Vollbild-Ansicht an.\n" +
+                   "Die Zeitachse lässt sich stattdessen über den Zoom strecken.");
+      return;
+    }
+    var result = request.call(viewBild);
+    if (result && result.catch) { result.catch(function () {}); }
+  }
+
   btnFullscreen.addEventListener("click", toggleFullscreen);
+  btnBildFull.addEventListener("click", toggleBildFullscreen);
   document.addEventListener("fullscreenchange", onFullscreenChange);
   document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 
