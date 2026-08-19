@@ -869,6 +869,75 @@
   svg.bild .stoppct { font-size: 9.5px; fill: var(--muted-2); }
   svg.bild .endmark { font-size: 10px; font-weight: 600; fill: var(--warn); }
 
+  /* ---------- Verschiebung der Abfahrtsminuten ---------- */
+
+  .shiftbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+    padding: 7px 9px;
+    margin-top: 8px;
+    background: var(--panel-alt);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+
+  .table > .shiftbar {
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+  }
+
+  .shiftbar .lead {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .shift-group {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .shift-group .who {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .shift-group input {
+    width: 54px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 2px 5px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text);
+    text-align: right;
+    background: var(--panel);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shift-group input:focus { outline: none; border-color: var(--accent); }
+  .shift-group .sep { color: var(--line); }
+  .shift-group button {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .shiftbar .hintnote { font-size: 11px; color: var(--muted-2); margin-left: auto; }
+  .shiftbar .hintnote.warn-text { color: var(--warn); font-weight: 600; }
+
   /* ---------- Anschlüsse ---------- */
 
   .conn-editor { border-bottom: 1px solid var(--line); }
@@ -1447,6 +1516,8 @@
     <div id="mapHint" class="map-hint">Klick in die Karte setzt die erste Haltestelle.</div>
   </div>
 
+  <div class="shiftbar" id="shiftTop"></div>
+
   <div class="toolbar">
     <span class="status" id="status">Noch keine Haltestellen</span>
     <button id="btnMirror" type="button" hidden>Aus Hinfahrt spiegeln</button>
@@ -1571,6 +1642,7 @@
       <span class="planinfo" id="connInfo"></span>
     </div>
 
+    <div class="shiftbar" id="shiftConn"></div>
     <div class="conn-editor" id="connEditor"></div>
     <div class="empty" id="connEmpty" hidden></div>
     <div id="connTables"></div>
@@ -1800,6 +1872,12 @@
   // Startzustand bewusst gesperrt: beim Öffnen soll ein Klick in die
   // Karte nichts anlegen und kein Marker versehentlich verrutschen.
   var editingLocked = true;
+
+  // Verschiebung der Abfahrtsminuten je Richtung, in Minuten. Beide
+  // wirken unabhängig; ihre Differenz verschiebt nur, wie sich die
+  // Wendezeit auf Ziel und Start verteilt, nicht die Umlaufzeit.
+  var shiftOut = 0;
+  var shiftBack = 0;
 
   // Routing-Ergebnisse je gerichtetem Koordinatenpaar. A→B und B→A sind
   // eigene Schlüssel – wegen Einbahnstraßen können sie sich unterscheiden.
@@ -2932,6 +3010,8 @@
   var btnBildReset = document.getElementById("btnBildReset");
   var bildZoomText = document.getElementById("bildZoomText");
   var btnFullscreen = document.getElementById("btnFullscreen");
+  var shiftTop = document.getElementById("shiftTop");
+  var shiftConn = document.getElementById("shiftConn");
   var connEditor = document.getElementById("connEditor");
   var connTables = document.getElementById("connTables");
   var connEmpty = document.getElementById("connEmpty");
@@ -3210,6 +3290,8 @@
       opEnd: opEndInput.value,
       connMin: connMinInput.value,
       connGood: connGoodInput.value,
+      shiftOut: shiftOut,
+      shiftBack: shiftBack,
       places: places.map(function (place) {
         return {
           id: place.id,
@@ -3329,6 +3411,8 @@
     setValue(connMinInput, data.connMin, "3");
     setValue(connGoodInput, data.connGood, "8");
     noTaktInput.checked = !!data.noTakt;
+    shiftOut = Math.round(asNumber(data.shiftOut) || 0);
+    shiftBack = Math.round(asNumber(data.shiftBack) || 0);
 
     var ziel = taktZielGroup.querySelector('input[value="' + (data.taktZiel || "end") + '"]');
     if (ziel) { ziel.checked = true; }
@@ -3336,6 +3420,174 @@
     editorShape = null;
     renderAll();
     if (places.length > 1) { fitRoute(); }
+  }
+
+  /* ==================================================================
+     Verschiebung der Abfahrtsminuten
+
+     Zwei Werte, je Richtung einer. Bedienbar an zwei Stellen, die
+     dieselben Werte schreiben. Jede Bedienung hat zwei Felder: die
+     absolute Abfahrtsminute und die Verschiebung dagegen - wer eins
+     ändert, sieht das andere sofort mitlaufen.
+     ================================================================== */
+
+  var shiftGroups = [];      // alle Bedienstellen, zum Gleichhalten
+
+  // Abfahrtsminute ohne jede Verschiebung, je Richtung.
+  function shiftBases() {
+    var data = currentData();
+    var startSec = parseTimeOfDay(data.opStart);
+    if (startSec === null) { return { out: 0, back: 0 }; }
+
+    var index = placeIndex(data);
+    var tOut = totalsFromData(data.out, index);
+    var wendeEndSec = parseClock(data.wendeEnd);
+
+    return {
+      out: Math.round(startSec / 60) % 60,
+      back: Math.round((startSec + tOut.totalSeconds + wendeEndSec) / 60) % 60
+    };
+  }
+
+  function shiftValue(key) { return key === "out" ? shiftOut : shiftBack; }
+
+  function absoluteMinute(key) {
+    var base = shiftBases()[key];
+    return (((base + shiftValue(key)) % 60) + 60) % 60;
+  }
+
+  // Kleinste Verschiebung, die auf die gewünschte Minute führt.
+  function shiftForMinute(key, minute) {
+    var base = shiftBases()[key];
+    return ((((minute - base) % 60) + 90) % 60) - 30;
+  }
+
+  function setShift(key, value) {
+    var next = Math.round(value);
+    if (!isFinite(next)) { return; }
+    if (key === "out") { shiftOut = next; } else { shiftBack = next; }
+    syncShiftGroups();
+    renderBody();
+    renderSummary();
+  }
+
+  function pad2(value) { return (value < 10 ? "0" : "") + value; }
+
+  function syncShiftGroups() {
+    var terminals = terminalNames();
+
+    shiftGroups.forEach(function (group) {
+      var key = group.key;
+      if (document.activeElement !== group.abs) {
+        group.abs.value = pad2(absoluteMinute(key));
+      }
+      if (document.activeElement !== group.rel) {
+        group.rel.value = String(shiftValue(key));
+      }
+      group.who.textContent = terminals[key] + " ab";
+    });
+  }
+
+  function terminalNames() {
+    var t = terminals();
+    return {
+      out: placeName(t.start) === "–" ? "Hinfahrt" : placeName(t.start),
+      back: placeName(t.end) === "–" ? "Rückfahrt" : placeName(t.end)
+    };
+  }
+
+  function buildShiftGroup(parent, key, label) {
+    var group = document.createElement("span");
+    group.className = "shift-group";
+
+    var tag = document.createElement("span");
+    tag.className = "lead";
+    tag.textContent = label;
+    group.appendChild(tag);
+
+    var who = document.createElement("span");
+    who.className = "who";
+    group.appendChild(who);
+
+    group.appendChild(document.createTextNode(":"));
+
+    var abs = document.createElement("input");
+    abs.type = "number";
+    abs.min = "0";
+    abs.max = "59";
+    abs.step = "1";
+    abs.setAttribute("aria-label", label + ": absolute Abfahrtsminute");
+    abs.title = "Absolute Abfahrtsminute – die Verschiebung daneben rechnet sich mit";
+    group.appendChild(abs);
+
+    var sep = document.createElement("span");
+    sep.className = "sep";
+    sep.textContent = "|";
+    group.appendChild(sep);
+
+    var rel = document.createElement("input");
+    rel.type = "number";
+    rel.step = "1";
+    rel.setAttribute("aria-label", label + ": Verschiebung in Minuten");
+    rel.title = "Verschiebung in Minuten gegenüber der unverschobenen Lage";
+    group.appendChild(rel);
+
+    group.appendChild(document.createTextNode("Min."));
+
+    var minus = document.createElement("button");
+    minus.type = "button";
+    minus.textContent = "−";
+    minus.title = "Eine Minute früher";
+    minus.addEventListener("click", function () {
+      rememberUndo("Abfahrtsminute verschoben");
+      setShift(key, shiftValue(key) - 1);
+    });
+    group.appendChild(minus);
+
+    var plus = document.createElement("button");
+    plus.type = "button";
+    plus.textContent = "+";
+    plus.title = "Eine Minute später";
+    plus.addEventListener("click", function () {
+      rememberUndo("Abfahrtsminute verschoben");
+      setShift(key, shiftValue(key) + 1);
+    });
+    group.appendChild(plus);
+
+    trackEdit(abs, "Abfahrtsminute verschoben");
+    trackEdit(rel, "Abfahrtsminute verschoben");
+
+    abs.addEventListener("input", function () {
+      var minute = parseInt(abs.value, 10);
+      if (isNaN(minute) || minute < 0 || minute > 59) { return; }
+      setShift(key, shiftForMinute(key, minute));
+    });
+
+    rel.addEventListener("input", function () {
+      var value = parseInt(rel.value, 10);
+      if (isNaN(value)) { return; }
+      setShift(key, value);
+    });
+
+    parent.appendChild(group);
+    shiftGroups.push({ key: key, abs: abs, rel: rel, who: who });
+  }
+
+  function buildShiftBar(container) {
+    container.textContent = "";
+
+    var lead = document.createElement("span");
+    lead.className = "lead";
+    lead.textContent = "Verschiebung";
+    container.appendChild(lead);
+
+    buildShiftGroup(container, "out", "Hin");
+    buildShiftGroup(container, "back", "Rück");
+
+    var note = document.createElement("span");
+    note.className = "hintnote";
+    container.appendChild(note);
+    return note;
   }
 
   /* ==================================================================
@@ -3462,9 +3714,11 @@
         var departure = arrival + (i === 0 ? 0 : list[i].dwell);
         var here = index.resolve(list[i].place) === target;
 
-        if (here && i > 0) { events.push({ time: arrival, kind: "an" }); }
+        if (here && i > 0) {
+          events.push({ time: arrival, kind: "an", dir: trip.dir });
+        }
         if (here && i < list.length - 1) {
-          events.push({ time: i === 0 ? trip.time : departure, kind: "ab" });
+          events.push({ time: i === 0 ? trip.time : departure, kind: "ab", dir: trip.dir });
         }
         if (i > 0 && i < list.length - 1) { t = departure; }
       }
@@ -3526,8 +3780,13 @@
       return metrics;
     }
 
+    // Gezählt wird wie in der Anschlussübersicht: je Haltestelle,
+    // Anschluss und Richtungs-Ereignis ein kennzeichnender Wert, nicht
+    // jede einzelne Abfahrt für sich.
     var minimum = (parseInt(data.connMin, 10) || 0) * 60;
     var good = (parseInt(data.connGood, 10) || 0) * 60;
+
+    var KINDS = [["out", "an"], ["out", "ab"], ["back", "an"], ["back", "ab"]];
 
     seen.forEach(function (place) {
       var list = place.connections || [];
@@ -3535,20 +3794,26 @@
 
       var events = eventsFromData(data, place.id, plan, index);
 
-      events.forEach(function (event) {
-        list.forEach(function (conn) {
-          var relevant = conn.rel === "both" ||
-            (conn.rel === "an" && event.kind === "an") ||
-            (conn.rel === "ab" && event.kind === "ab");
-          if (!relevant || !(conn.takt > 0)) { return; }
+      list.forEach(function (conn) {
+        if (!(conn.takt > 0)) { return; }
 
-          var forward = event.kind === "an";
-          var connSec = connectionTime(conn, event.time, forward);
-          var wait = forward ? connSec - event.time : event.time - connSec;
+        KINDS.forEach(function (pair) {
+          if (conn.rel !== "both" && conn.rel !== pair[1]) { return; }
 
+          var values = [];
+          events.forEach(function (event) {
+            if (event.dir !== pair[0] || event.kind !== pair[1]) { return; }
+            var offset = connectionOffset(conn, event.time, pair[1] === "an");
+            if (offset !== null) { values.push(offset); }
+          });
+
+          var summary = summarizeOffsets(values);
+          if (!summary) { return; }
+
+          var typical = summary.typical * 60;
           metrics.checked++;
-          if (wait < minimum) { metrics.bad++; }
-          else if (wait < good) { metrics.tight++; }
+          if (typical < 0 || typical < minimum) { metrics.bad++; }
+          else if (typical < good) { metrics.tight++; }
           else { metrics.good++; }
         });
       });
@@ -3647,13 +3912,21 @@
     var outRun = tOut.totalSeconds - outStops[outStops.length - 1].dwell;
     var backRun = tBack.totalSeconds - backStops[backStops.length - 1].dwell;
 
+    // Verschiebung der Hinfahrt dreht das Abfahrtsraster innerhalb des
+    // Betriebsfensters; die Rückfahrt wird zusätzlich um ihre eigene
+    // Verschiebung versetzt, was sich in der Wende am Ziel niederschlägt.
+    var shiftOutSec = Math.round((asNumber(data.shiftOut) || 0) * 60);
+    var shiftBackSec = Math.round((asNumber(data.shiftBack) || 0) * 60);
+    var rasterOffset = ((shiftOutSec % taktSec) + taktSec) % taktSec;
+    var backDelta = shiftBackSec - shiftOutSec;
+
     var trips = [];
     var truncated = false;
     var runs = 0;
 
-    for (var t = startSec; t <= endSec; t += taktSec) {
+    for (var t = startSec + rasterOffset; t <= endSec; t += taktSec) {
       var vehicle = (runs % vehicles) + 1;
-      var backDeparture = t + tOut.totalSeconds + wendeEndSec;
+      var backDeparture = t + tOut.totalSeconds + wendeEndSec + backDelta;
 
       trips.push({ time: t, dir: "out", vehicle: vehicle, arrive: t + outRun });
       trips.push({ time: backDeparture, dir: "back", vehicle: vehicle,
@@ -3678,6 +3951,12 @@
       wendeEndSec: wendeEndSec,
       wendeStartSec: wendeStartSec,
       bufferSec: vehicles * taktSec - umlaufSec,
+      shiftOutSec: shiftOutSec,
+      shiftBackSec: shiftBackSec,
+      // Die Verschiebungen verteilen die Wendezeit nur anders auf beide
+      // Enden; ihre Summe und damit die Umlaufzeit bleiben gleich.
+      effectiveWendeEnd: wendeEndSec + backDelta,
+      effectiveWendeStart: wendeStartSec - backDelta,
       startSec: startSec,
       endSec: endSec,
       truncated: truncated,
@@ -4280,6 +4559,98 @@
     return conn.hint.trim() ? name + " " + conn.hint.trim() : name;
   }
 
+  // Nächstgelegene Fahrt des Anschlusses, vorwärts wie rückwärts, und
+  // daraus der vorzeichenbehaftete Abstand: positiv heißt, der Übergang
+  // geht mit so viel Luft auf; negativ heißt, er ist um so viel verpasst.
+  function connectionOffset(conn, seconds, forward) {
+    var next = connectionTime(conn, seconds, true);
+    var prev = connectionTime(conn, seconds, false);
+    if (next === null || prev === null) { return null; }
+
+    var offsets = forward
+      ? [next - seconds, prev - seconds]
+      : [seconds - next, seconds - prev];
+
+    return Math.abs(offsets[0]) <= Math.abs(offsets[1]) ? offsets[0] : offsets[1];
+  }
+
+  function offsetClass(offsetSeconds) {
+    if (offsetSeconds < 0) { return "w-bad"; }
+    return waitClass(offsetSeconds);
+  }
+
+  // Aus vielen gleichartigen Übergängen den kennzeichnenden Wert und die
+  // Bandbreite gewinnen - bei festem Takt wiederholt sich das Bild, nur
+  // Rundung lässt es leicht schwanken.
+  function summarizeOffsets(values) {
+    if (values.length === 0) { return null; }
+
+    var minutes = values.map(function (value) { return Math.round(value / 60); });
+    var counts = {};
+    minutes.forEach(function (value) { counts[value] = (counts[value] || 0) + 1; });
+
+    var typical = minutes[0];
+    var best = 0;
+    Object.keys(counts).forEach(function (key) {
+      var value = Number(key);
+      if (counts[key] > best || (counts[key] === best && Math.abs(value) < Math.abs(typical))) {
+        best = counts[key];
+        typical = value;
+      }
+    });
+
+    var low = Math.min.apply(null, minutes);
+    var high = Math.max.apply(null, minutes);
+
+    return {
+      typical: typical,
+      low: low,
+      high: high,
+      spread: low !== high,
+      count: values.length,
+      worst: Math.min.apply(null, values)
+    };
+  }
+
+  function signed(minutes) {
+    return (minutes > 0 ? "+" : (minutes < 0 ? "−" : "±")) + Math.abs(minutes);
+  }
+
+  function offsetCell(summary) {
+    var td = document.createElement("td");
+    td.className = "wait";
+    var box = document.createElement("span");
+
+    if (!summary) {
+      box.className = "w-none";
+      box.textContent = "–";
+      td.appendChild(box);
+      return td;
+    }
+
+    box.className = offsetClass(summary.typical * 60);
+
+    var strong = document.createElement("b");
+    strong.textContent = signed(summary.typical) + " Min.";
+    box.appendChild(strong);
+
+    if (summary.spread) {
+      var span = document.createElement("em");
+      span.textContent = " " + signed(summary.low) + "…" + signed(summary.high);
+      box.appendChild(span);
+    }
+
+    box.title = summary.count + " Übergänge am Tag" +
+      (summary.spread
+        ? ", meist " + signed(summary.typical) + " Min., Bandbreite " +
+          signed(summary.low) + " bis " + signed(summary.high) + " Min."
+        : ", durchgehend " + signed(summary.typical) + " Min.") +
+      (summary.typical < 0 ? " – der Anschluss ist weg." : "");
+
+    td.appendChild(box);
+    return td;
+  }
+
   function renderConnTables() {
     connTables.textContent = "";
 
@@ -4304,124 +4675,16 @@
 
     connEmpty.hidden = true;
 
-    var total = 0;
-    var bad = 0;
-
-    withConns.forEach(function (place) {
-      var list = connectionsOf(place);
-      var events = eventsAtPlace(place, plan);
-
-      var block = document.createElement("div");
-      block.className = "conn-block";
-
-      var cap = document.createElement("div");
-      cap.className = "cap";
-      cap.appendChild(document.createTextNode(place.name.trim() || place.fallback));
-      var sub = document.createElement("span");
-      sub.textContent = "  ·  " + events.length + " eigene " +
-        plural(events.length, "Zeit", "Zeiten") + "  ·  " +
-        list.length + " " + plural(list.length, "Anschluss", "Anschlüsse");
-      cap.appendChild(sub);
-      block.appendChild(cap);
-
-      var table = document.createElement("table");
-      table.className = "sheet conn";
-
-      var thead = document.createElement("thead");
-      var headRow = document.createElement("tr");
-      ["Zeit", "Ereignis", "Fahrzeug"].forEach(function (text) {
-        var th = document.createElement("th");
-        th.textContent = text;
-        headRow.appendChild(th);
-      });
-      list.forEach(function (conn, index) {
-        var th = document.createElement("th");
-        th.className = "r conncol";
-        th.textContent = connLabel(conn, index) +
-          (conn.takt > 0 ? " · " + num(conn.takt) + "' ab :" +
-            (conn.anchor < 10 ? "0" : "") + conn.anchor : " · ohne Takt");
-        headRow.appendChild(th);
-      });
-      thead.appendChild(headRow);
-      table.appendChild(thead);
-
-      var tbody = document.createElement("tbody");
-
-      events.forEach(function (event) {
-        var tr = document.createElement("tr");
-
-        var time = document.createElement("td");
-        time.className = "time";
-        time.style.borderLeftColor = vehicleColor(event.vehicle);
-        time.textContent = hhmm(event.time);
-        tr.appendChild(time);
-
-        var kind = document.createElement("td");
-        var kindSpan = document.createElement("span");
-        kindSpan.className = event.dir === "out" ? "dir-out" : "dir-back";
-        kindSpan.textContent = (event.kind === "an" ? "Ankunft " : "Abfahrt ") +
-          (event.dir === "out" ? "Hinfahrt" : "Rückfahrt");
-        kind.appendChild(kindSpan);
-        tr.appendChild(kind);
-
-        var veh = document.createElement("td");
-        veh.className = "veh";
-        var tag = document.createElement("span");
-        tag.style.background = vehicleColor(event.vehicle);
-        tag.textContent = String(event.vehicle);
-        veh.appendChild(tag);
-        tr.appendChild(veh);
-
-        list.forEach(function (conn) {
-          var cell = document.createElement("td");
-          cell.className = "wait";
-          var box = document.createElement("span");
-
-          var relevant = conn.rel === "both" ||
-            (conn.rel === "an" && event.kind === "an") ||
-            (conn.rel === "ab" && event.kind === "ab");
-
-          if (!relevant || !(conn.takt > 0)) {
-            box.className = "w-none";
-            box.textContent = relevant ? "kein Takt" : "–";
-          } else {
-            var forward = event.kind === "an";
-            var connSec = connectionTime(conn, event.time, forward);
-            var wait = forward ? connSec - event.time : event.time - connSec;
-
-            box.className = waitClass(wait);
-            var strong = document.createElement("b");
-            strong.textContent = Math.round(wait / 60) + " Min";
-            box.appendChild(strong);
-            var when = document.createElement("em");
-            when.textContent = (forward ? " ab " : " an ") + hhmm(connSec);
-            box.appendChild(when);
-
-            // Zur Einordnung: wie lange wäre es bis zur übernächsten Fahrt
-            var nachher = connectionTime(conn, event.time + (forward ? 1 : -1), forward);
-            box.title = (forward ? "Anschluss fährt " + hhmm(connSec) : "Anschluss kommt " + hhmm(connSec)) +
-              " · nächste Gelegenheit " +
-              hhmm(connSec + (forward ? conn.takt * 60 : -conn.takt * 60));
-
-            total++;
-            if (box.className === "w-bad") { bad++; }
-          }
-
-          cell.appendChild(box);
-          tr.appendChild(cell);
-        });
-
-        tbody.appendChild(tr);
-      });
-
-      table.appendChild(tbody);
-      block.appendChild(table);
-      connTables.appendChild(block);
-    });
+    var KINDS = [
+      { dir: "out", kind: "an", label: "Hinfahrt an" },
+      { dir: "out", kind: "ab", label: "Hinfahrt ab" },
+      { dir: "back", kind: "an", label: "Rückfahrt an" },
+      { dir: "back", kind: "ab", label: "Rückfahrt ab" }
+    ];
 
     var legend = document.createElement("div");
     legend.className = "conn-legend";
-    [["w-bad", "unter Minimum"], ["w-tight", "knapp"], ["w-good", "komfortabel"]]
+    [["w-bad", "verpasst oder unter Minimum"], ["w-tight", "knapp"], ["w-good", "komfortabel"]]
       .forEach(function (pair) {
         var key = document.createElement("span");
         key.className = "key";
@@ -4431,11 +4694,102 @@
         key.appendChild(document.createTextNode(pair[1]));
         legend.appendChild(key);
       });
-    connTables.insertBefore(legend, connTables.firstChild);
+    var explain = document.createElement("span");
+    explain.className = "key";
+    explain.textContent = "Plus = so viel Luft beim Übergang, Minus = um so viel verpasst";
+    legend.appendChild(explain);
+    connTables.appendChild(legend);
 
-    connInfo.textContent = withConns.length + " " +
-      plural(withConns.length, "Haltestelle", "Haltestellen") + " mit Anschluss  ·  " +
-      total + " geprüfte Übergänge  ·  " + bad + " unter dem Minimum";
+    var table = document.createElement("table");
+    table.className = "sheet conn compact";
+
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    ["Haltestelle", "Anschluss", "gilt für"].forEach(function (text) {
+      var th = document.createElement("th");
+      th.textContent = text;
+      headRow.appendChild(th);
+    });
+    KINDS.forEach(function (kind) {
+      var th = document.createElement("th");
+      th.className = "r conncol";
+      th.textContent = kind.label;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    var counts = { good: 0, tight: 0, bad: 0 };
+    var rows = 0;
+
+    withConns.forEach(function (place) {
+      var events = eventsAtPlace(place, plan);
+
+      connectionsOf(place).forEach(function (conn, index) {
+        var tr = document.createElement("tr");
+        rows++;
+
+        var stopCell = document.createElement("td");
+        stopCell.className = "name";
+        stopCell.textContent = place.name.trim() || place.fallback;
+        tr.appendChild(stopCell);
+
+        var connCell = document.createElement("td");
+        connCell.textContent = connLabel(conn, index);
+        var sub = document.createElement("span");
+        sub.className = "legnote";
+        sub.textContent = conn.takt > 0
+          ? "  " + num(conn.takt) + "' ab :" + (conn.anchor < 10 ? "0" : "") + conn.anchor
+          : "  ohne Takt";
+        connCell.appendChild(sub);
+        tr.appendChild(connCell);
+
+        var relCell = document.createElement("td");
+        relCell.className = "legnote";
+        relCell.textContent = conn.rel === "both" ? "beide"
+          : (conn.rel === "an" ? "meine Ankünfte" : "meine Abfahrten");
+        tr.appendChild(relCell);
+
+        KINDS.forEach(function (kind) {
+          var relevant = conn.rel === "both" || conn.rel === kind.kind;
+          if (!relevant || !(conn.takt > 0)) {
+            tr.appendChild(offsetCell(null));
+            return;
+          }
+
+          var values = [];
+          events.forEach(function (event) {
+            if (event.dir !== kind.dir || event.kind !== kind.kind) { return; }
+            var offset = connectionOffset(conn, event.time, kind.kind === "an");
+            if (offset !== null) { values.push(offset); }
+          });
+
+          var summary = summarizeOffsets(values);
+          tr.appendChild(offsetCell(summary));
+
+          if (summary) {
+            var cls = offsetClass(summary.typical * 60);
+            if (cls === "w-good") { counts.good++; }
+            else if (cls === "w-tight") { counts.tight++; }
+            else { counts.bad++; }
+          }
+        });
+
+        tbody.appendChild(tr);
+      });
+    });
+
+    table.appendChild(tbody);
+    connTables.appendChild(table);
+
+    var cells = counts.good + counts.tight + counts.bad;
+    connInfo.textContent = rows + " " +
+      plural(rows, "Kombination", "Kombinationen") + " an " + withConns.length + " " +
+      plural(withConns.length, "Haltestelle", "Haltestellen") + "  ·  " +
+      cells + " bewertete " + plural(cells, "Übergang", "Übergänge") + ": " +
+      counts.good + " komfortabel, " + counts.tight + " knapp, " +
+      counts.bad + " verpasst oder zu knapp";
   }
 
   function renderConnections() {
@@ -5548,6 +5902,39 @@
     warnTakt.hidden = false;
   }
 
+  // Weist aus, wie sich die Verschiebungen auf die beiden Wendezeiten
+  // auswirken, und warnt, wenn dabei keine Zeit mehr übrig bleibt.
+  function updateShiftNote() {
+    var plan = buildSchedule();
+    var text = "";
+    var warn = false;
+
+    if (!plan.error) {
+      if (shiftOut === 0 && shiftBack === 0) {
+        text = "unverschoben";
+      } else {
+        var signedClock = function (seconds) {
+          return (seconds < 0 ? "−" : "") + clock(Math.abs(seconds));
+        };
+
+        text = "Wende am Ziel " + signedClock(plan.effectiveWendeEnd) +
+          ", am Start " + signedClock(plan.effectiveWendeStart) +
+          "  ·  Umlaufzeit unverändert " + clock(plan.umlaufSec);
+        warn = plan.effectiveWendeEnd < 0 || plan.effectiveWendeStart < 0;
+        if (warn) {
+          text = "⚠ " + text + " – eine negative Wende ist nicht fahrbar, " +
+            "die Rückfahrt würde vor der Ankunft losfahren.";
+        }
+      }
+    }
+
+    [shiftNoteTop, shiftNoteConn].forEach(function (note) {
+      if (!note) { return; }
+      note.textContent = text;
+      note.className = "hintnote" + (warn ? " warn-text" : "");
+    });
+  }
+
   function renderSummary() {
     var rows = entries();
     var realRows = rows.filter(function (e) { return !resolvePlace(e.place).waypoint; });
@@ -5562,6 +5949,9 @@
     subBack.textContent = dirs.back.entries.length ? clock(tBack.totalSeconds) : "";
 
     renderUmlauf(tOut, tBack);
+
+    syncShiftGroups();
+    updateShiftNote();
 
     // Schema und Tagesfahrplan hängen an denselben Werten wie die
     // Zusammenfassung und werden mit ihr neu gezeichnet.
@@ -6001,6 +6391,9 @@
       clearAll();
     }
   });
+
+  var shiftNoteTop = buildShiftBar(shiftTop);
+  var shiftNoteConn = buildShiftBar(shiftConn);
 
   renderAll();
   refreshUndoButton();
