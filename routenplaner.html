@@ -35,7 +35,7 @@
     --stand: #7c848c;        /* Wende- und Standzeiten */
 
     /* # | Haltestelle | Koordinaten | Aufenthalt | Rolle | Aktion */
-    --grid: 24px minmax(100px, 1fr) 104px 116px 44px 142px;
+    --grid: 24px minmax(96px, 1fr) 104px 112px 68px 172px;
   }
 
   * { box-sizing: border-box; }
@@ -219,8 +219,8 @@
   }
 
   #map {
-    height: 42vh;
-    min-height: 280px;
+    height: 58vh;
+    min-height: 340px;
     width: 100%;
     background: #dfe3e7;
   }
@@ -239,6 +239,23 @@
   }
 
   .map-hint[hidden] { display: none; }
+
+  button.mapbtn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 600;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    background: rgba(255, 255, 255, 0.94);
+    border-color: var(--line);
+    box-shadow: 0 1px 3px rgba(34, 39, 44, 0.25);
+  }
+
+  /* Im Vollbild füllt die Karte den Schirm. */
+  .map-card:fullscreen { border: 0; border-radius: 0; }
+  .map-card:fullscreen #map { height: 100vh; min-height: 0; }
+  .map-card:-webkit-full-screen #map { height: 100vh; min-height: 0; }
 
   .stop-pin {
     background: var(--pin);
@@ -259,6 +276,15 @@
 
   .stop-pin.is-start { background: var(--pin-start); }
   .stop-pin.is-end   { background: var(--pin-end); }
+
+  .way-pin {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid var(--muted);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+  }
 
   .leaflet-popup-content-wrapper { border-radius: var(--r); }
   .leaflet-popup-content { margin: 9px 11px; }
@@ -398,6 +424,25 @@
 
   .badge.is-start { background: var(--pin-start); }
   .badge.is-end   { background: var(--pin-end); }
+
+  .badge.is-way {
+    background: var(--panel);
+    border: 1px solid var(--muted-2);
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .stop.is-waypoint { background: #fbfbfc; }
+  .stop.is-waypoint .role { color: var(--muted-2); }
+
+  .wayname {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    padding: 3px 5px;
+  }
+
+  button.waybtn[aria-pressed="true"] { color: var(--accent); border-color: #b9c3cd; }
 
   input.name {
     width: 100%;
@@ -800,6 +845,16 @@
   /* ---------- Bildfahrplan ---------- */
 
   .bild-scroll { overflow-x: auto; padding: 8px 0 4px; }
+
+  .planbar .zoomval {
+    display: inline-block;
+    min-width: 46px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text);
+  }
 
   svg.bild { display: block; }
 
@@ -1337,7 +1392,7 @@
       <label class="ctrl">
         <span class="cap">Bearbeitung</span>
         <button id="btnLock" type="button" class="lockbtn" aria-pressed="true">
-          <span id="lockIcon">🔒</span><span id="lockText">gesperrt</span>
+          <span id="lockText">Bearbeitung gesperrt</span>
         </button>
         <span class="hint" id="lockHint">Karte nur ansehen</span>
       </label>
@@ -1387,6 +1442,7 @@
   </div>
 
   <div class="map-card" id="mapCard">
+    <button id="btnFullscreen" type="button" class="mapbtn" title="Karte im Vollbild anzeigen">Vollbild</button>
     <div id="map"></div>
     <div id="mapHint" class="map-hint">Klick in die Karte setzt die erste Haltestelle.</div>
   </div>
@@ -1394,6 +1450,7 @@
   <div class="toolbar">
     <span class="status" id="status">Noch keine Haltestellen</span>
     <button id="btnMirror" type="button" hidden>Aus Hinfahrt spiegeln</button>
+    <button id="btnUndo" type="button" disabled>Rückgängig</button>
     <button id="btnFit" type="button" disabled>Route einpassen</button>
     <button id="btnRetry" type="button" disabled>Routing wiederholen</button>
     <button id="btnPrint" type="button" hidden>Drucken</button>
@@ -1484,6 +1541,13 @@
         Betriebsende
         <input id="bildEnd" type="time" value="23:30" step="60">
       </label>
+      <span class="field">
+        Zeitachse
+        <button id="btnBildOut" type="button" title="Zeitachse stauchen">−</button>
+        <span id="bildZoomText" class="zoomval">100 %</span>
+        <button id="btnBildIn" type="button" title="Zeitachse strecken">+</button>
+        <button id="btnBildReset" type="button" title="Zurück auf 100 %">Zurücksetzen</button>
+      </span>
       <span class="planinfo" id="bildInfo"></span>
     </div>
     <div class="veh-legend" id="bildLegend" hidden></div>
@@ -2040,6 +2104,8 @@
   }
 
   function addPlace(lat, lng) {
+    rememberUndo("Haltestelle gesetzt");
+
     var place = {
       id: nextPlaceId++,
       name: "Haltestelle " + (places.length + 1),
@@ -2050,7 +2116,8 @@
       popupInput: null,
       linkedTo: null,        // mit diesem Ort gleichgesetzt
       unlinkedPos: null,     // ursprüngliche Lage, für das Lösen
-      connections: []        // Anschlusslinien an diesem Ort
+      connections: [],       // Anschlusslinien an diesem Ort
+      waypoint: false        // nur Zwangspunkt der Route, kein Halt
     };
 
     place.marker = L.marker([lat, lng], {
@@ -2088,7 +2155,10 @@
       "Haltestelle gehen in beiden Richtungen verloren; die angrenzenden Teilstrecken " +
       "werden neu berechnet.";
 
-    if (window.confirm(text)) { removePlace(place); }
+    if (window.confirm(text)) {
+      rememberUndo("Haltestelle gelöscht");
+      removePlace(place);
+    }
   }
 
   function removePlace(place) {
@@ -2104,6 +2174,7 @@
     var list = entries();
     var target = index + delta;
     if (target < 0 || target >= list.length) { return; }
+    rememberUndo("Reihenfolge geändert");
     list.splice(target, 0, list.splice(index, 1)[0]);
     renderAll();
   }
@@ -2112,6 +2183,7 @@
   // Aufenthalte und von Hand gesetzte Fahrzeiten der Rückfahrt bleiben an
   // ihrem Ort erhalten, nur die Reihenfolge wird neu gesetzt.
   function mirrorFromOut() {
+    rememberUndo("Rückfahrt gespiegelt");
     var byPlace = {};
     dirs.back.entries.forEach(function (e) { byPlace[e.place.id] = e; });
 
@@ -2128,6 +2200,7 @@
   function linkToStart(place) {
     var start = dirs.out.entries.length ? dirs.out.entries[0].place : null;
     if (!start || start === place) { return; }
+    rememberUndo("Mit Starthaltestelle verbunden");
 
     place.unlinkedPos = { lat: place.lat, lng: place.lng };
     place.linkedTo = start;
@@ -2140,6 +2213,7 @@
 
   function unlinkFromStart(place) {
     if (!place.linkedTo) { return; }
+    rememberUndo("Verbindung gelöst");
 
     if (place.unlinkedPos) {
       place.lat = place.unlinkedPos.lat;
@@ -2149,6 +2223,75 @@
     place.linkedTo = null;
     place.unlinkedPos = null;
 
+    renderAll();
+  }
+
+  // Ein Wegpunkt zwingt die Route über einen Punkt, ist aber kein Halt:
+  // keine Aufenthaltszeit, kein eigener Name, nicht im Fahrplan.
+  function waypointName(place) {
+    var number = 0;
+    for (var i = 0; i < places.length; i++) {
+      if (places[i].waypoint) { number++; }
+      if (places[i] === place) { return "Wegpunkt " + number; }
+    }
+    return "Wegpunkt";
+  }
+
+  function renameWaypoints() {
+    places.forEach(function (place) {
+      if (place.waypoint) { place.name = waypointName(place); }
+    });
+  }
+
+  // Endpunkte einer Richtung dürfen keine Wegpunkte werden.
+  function canBeWaypoint(place) {
+    return !DIR_KEYS.some(function (key) {
+      var list = dirs[key].entries;
+      if (list.length === 0) { return false; }
+      return resolvePlace(list[0].place) === resolvePlace(place) ||
+             resolvePlace(list[list.length - 1].place) === resolvePlace(place);
+    });
+  }
+
+  function toggleWaypoint(place) {
+    var target = resolvePlace(place);
+
+    if (!target.waypoint && !canBeWaypoint(target)) {
+      window.alert("Start- und Endhaltestellen können keine Wegpunkte sein.\n\n" +
+                   "Eine Linie braucht an beiden Enden einen echten Halt.");
+      return;
+    }
+
+    rememberUndo(target.waypoint ? "Wegpunkt zurückgewandelt" : "Zu Wegpunkt gemacht");
+
+    if (target.waypoint) {
+      target.waypoint = false;
+      target.name = target.savedName || "";
+      target.savedName = null;
+      // Aufenthalt wieder herstellen, wie er vor der Umwandlung war.
+      DIR_KEYS.forEach(function (key) {
+        dirs[key].entries.forEach(function (entry) {
+          if (resolvePlace(entry.place) !== target) { return; }
+          entry.dwell = (typeof entry.savedDwell === "number")
+            ? entry.savedDwell : defaultDwell();
+          entry.savedDwell = null;
+        });
+      });
+    } else {
+      target.savedName = target.name;
+      target.waypoint = true;
+      // Aufenthalt eines Wegpunktes zählt nirgends mit.
+      DIR_KEYS.forEach(function (key) {
+        dirs[key].entries.forEach(function (entry) {
+          if (resolvePlace(entry.place) !== target) { return; }
+          entry.savedDwell = entry.dwell;
+          entry.dwell = 0;
+        });
+      });
+    }
+
+    renameWaypoints();
+    editorShape = null;
     renderAll();
   }
 
@@ -2170,6 +2313,10 @@
       var pos = e.target.getLatLng();
       place.lat = pos.lat;
       place.lng = pos.lng;
+    });
+
+    place.marker.on("dragstart", function () {
+      rememberUndo("Haltestelle verschoben");
     });
 
     place.marker.on("dragend", function () {
@@ -2238,7 +2385,18 @@
      Karte zeichnen
      ================================================================== */
 
-  function pinIcon(position, total, linked) {
+  function pinIcon(position, total, linked, waypoint, label) {
+    if (waypoint) {
+      return L.divIcon({
+        className: "",
+        html: '<div class="way-pin"></div>',
+        iconSize: [13, 13],
+        iconAnchor: [6, 6],
+        popupAnchor: [0, -8],
+        tooltipAnchor: [0, -8]
+      });
+    }
+
     var role = position === 0
       ? " is-start"
       : (position === total - 1 && total > 1 ? " is-end" : "");
@@ -2246,7 +2404,7 @@
 
     return L.divIcon({
       className: "",
-      html: '<div class="stop-pin' + role + '">' + (position + 1) + "</div>",
+      html: '<div class="stop-pin' + role + '">' + label + "</div>",
       iconSize: [21, 21],
       iconAnchor: [10, 10],
       popupAnchor: [0, -12],
@@ -2274,12 +2432,34 @@
   }
 
   // Nummerierung und Rolle richten sich nach der gewählten Richtung.
+  // Wegpunkte werden nicht mitgezählt: die Nummern laufen über die
+  // echten Haltestellen durch.
+  function stopNumbers(list) {
+    var numbers = [];
+    var count = 0;
+    list.forEach(function (entry) {
+      if (resolvePlace(entry.place).waypoint) { numbers.push(null); }
+      else { count++; numbers.push(count); }
+    });
+    return { numbers: numbers, total: count };
+  }
+
   function renderMarkers() {
     var list = entries();
-    list.forEach(function (entry, i) {
-      entry.place.marker.setIcon(pinIcon(i, list.length, !!entry.place.linkedTo));
+    var numbering = stopNumbers(list);
 
-      var label = (i + 1) + ". " + (resolvePlace(entry.place).name.trim() || "ohne Namen");
+    list.forEach(function (entry, i) {
+      var place = resolvePlace(entry.place);
+      var number = numbering.numbers[i];
+      entry.place.marker.setIcon(pinIcon(
+        number === null ? -1 : number - 1,
+        numbering.total,
+        !!entry.place.linkedTo,
+        place.waypoint,
+        String(number)));
+
+      var label = (number === null ? "" : number + ". ") +
+        (place.name.trim() || "ohne Namen");
       if (entry.place.marker.getTooltip()) {
         entry.place.marker.setTooltipContent(label);
       } else {
@@ -2311,6 +2491,7 @@
     var place = resolvePlace(entry.place);
     var input = document.createElement("input");
     input.className = "name";
+    trackEdit(input, "Name geändert");
     input.type = "text";
     input.value = place.name;
     input.placeholder = "Name der Haltestelle";
@@ -2326,6 +2507,7 @@
   function minutesField(entry) {
     var input = document.createElement("input");
     input.className = "minutes";
+    trackEdit(input, "Fahrzeit geändert");
     input.type = "number";
     input.min = "0";
     input.step = "1";
@@ -2392,6 +2574,8 @@
       renderSummary();
     }
 
+    trackEdit(minutes, "Aufenthalt geändert");
+    trackEdit(seconds, "Aufenthalt geändert");
     minutes.addEventListener("input", apply);
     seconds.addEventListener("input", apply);
 
@@ -2468,16 +2652,27 @@
   function buildStopRow(entry, i, total) {
     var isStart = i === 0;
     var isEnd = i === total - 1 && total > 1;
+    var place = resolvePlace(entry.place);
+    var isWaypoint = !!place.waypoint;
+    var number = stopNumbers(entries()).numbers[i];
 
     var li = document.createElement("li");
-    li.className = "stop";
+    li.className = "stop" + (isWaypoint ? " is-waypoint" : "");
 
     var badge = document.createElement("span");
-    badge.className = "badge" + (isStart ? " is-start" : (isEnd ? " is-end" : ""));
-    badge.textContent = String(i + 1);
+    badge.className = "badge" + (isWaypoint ? " is-way"
+      : (isStart ? " is-start" : (isEnd ? " is-end" : "")));
+    badge.textContent = isWaypoint ? "·" : String(number);
     li.appendChild(badge);
 
-    li.appendChild(nameField(entry));
+    if (isWaypoint) {
+      var wayName = document.createElement("span");
+      wayName.className = "wayname";
+      wayName.textContent = place.name || "Wegpunkt";
+      li.appendChild(wayName);
+    } else {
+      li.appendChild(nameField(entry));
+    }
 
     var coords = document.createElement("span");
     coords.className = "coords num";
@@ -2487,15 +2682,23 @@
     // Aufenthalt zählt an der Ziel-Haltestelle einer Teilstrecke. Am
     // Start der Richtung gibt es keine, das Feld bleibt trotzdem
     // bearbeitbar – in der Gegenrichtung ist derselbe Ort ein Ziel.
-    var dwellCell = dwellFields(entry, isStart);
-    dwellCell.title = isStart
-      ? "Am Startpunkt dieser Richtung zählt der Aufenthalt nicht mit"
-      : "Aufenthalt an dieser Haltestelle";
-    li.appendChild(dwellCell);
+    if (isWaypoint) {
+      var noDwell = document.createElement("span");
+      noDwell.className = "dwell idle";
+      noDwell.textContent = "kein Halt";
+      noDwell.title = "Ein Wegpunkt lenkt nur die Route und hat keine Aufenthaltszeit";
+      li.appendChild(noDwell);
+    } else {
+      var dwellCell = dwellFields(entry, isStart);
+      dwellCell.title = isStart
+        ? "Am Startpunkt dieser Richtung zählt der Aufenthalt nicht mit"
+        : "Aufenthalt an dieser Haltestelle";
+      li.appendChild(dwellCell);
+    }
 
     var role = document.createElement("span");
     role.className = "role";
-    role.textContent = isStart ? "Start" : (isEnd ? "Ziel" : "");
+    role.textContent = isWaypoint ? "Wegpunkt" : (isStart ? "Start" : (isEnd ? "Ziel" : ""));
     li.appendChild(role);
 
     var actions = document.createElement("div");
@@ -2510,6 +2713,16 @@
       map.setView([entry.place.lat, entry.place.lng], Math.max(map.getZoom(), 15));
       entry.place.marker.openPopup();
     }));
+
+    var wayBtn = iconButton(isWaypoint ? "◉" : "○",
+      isWaypoint
+        ? "Wieder als Haltestelle führen"
+        : "Als Wegpunkt führen – lenkt nur die Route, zählt nicht als Halt",
+      !isWaypoint && (isStart || isEnd),
+      function () { toggleWaypoint(entry.place); });
+    wayBtn.className = "waybtn";
+    wayBtn.setAttribute("aria-pressed", isWaypoint ? "true" : "false");
+    actions.appendChild(wayBtn);
     actions.appendChild(iconButton("✕", "Haltestelle in beiden Richtungen löschen", false, function () {
       confirmRemovePlace(entry.place);
     }));
@@ -2714,6 +2927,11 @@
   var btnLineTemplate = document.getElementById("btnLineTemplate");
   var lineFile = document.getElementById("lineFile");
   var lineImportInfo = document.getElementById("lineImportInfo");
+  var btnBildIn = document.getElementById("btnBildIn");
+  var btnBildOut = document.getElementById("btnBildOut");
+  var btnBildReset = document.getElementById("btnBildReset");
+  var bildZoomText = document.getElementById("bildZoomText");
+  var btnFullscreen = document.getElementById("btnFullscreen");
   var connEditor = document.getElementById("connEditor");
   var connTables = document.getElementById("connTables");
   var connEmpty = document.getElementById("connEmpty");
@@ -2728,6 +2946,28 @@
   var bildInfo = document.getElementById("bildInfo");
   var bildStartInput = document.getElementById("bildStart");
   var bildEndInput = document.getElementById("bildEnd");
+
+  // Streckung der Zeitachse im Bildfahrplan, 1 entspricht 100 %.
+  var bildZoom = 1;
+  var BILD_ZOOM_STEPS = [0.5, 0.7, 1, 1.4, 2, 3, 4, 6];
+
+  // Echte Halte einer Richtung: Wegpunkte sind herausgerechnet, ihre
+  // Fahrzeit steckt in der folgenden Teilstrecke.
+  function stopEntries(dirKey) {
+    var data = currentData();
+    var index = placeIndex(data);
+    var byId = {};
+    places.forEach(function (place) { byId[place.id] = place; });
+
+    return collapseData(data[dirKey] || [], index).map(function (entry) {
+      var resolved = index.resolve(entry.place);
+      return {
+        place: byId[resolved ? resolved.id : entry.place] || byId[entry.place],
+        minutes: entry.minutes,
+        dwell: entry.dwell
+      };
+    }).filter(function (entry) { return !!entry.place; });
+  }
 
   var SVGNS = "http://www.w3.org/2000/svg";
 
@@ -2769,8 +3009,8 @@
     schemaBox.textContent = "";
     schemaHint.textContent = "";
 
-    var out = dirs.out.entries;
-    var back = dirs.back.entries;
+    var out = stopEntries("out");
+    var back = stopEntries("back");
 
     if (out.length < 2 || back.length < 2) {
       schemaHint.textContent = "Für das Schema braucht es Hin- und Rückfahrt mit je mindestens zwei Haltestellen.";
@@ -2825,7 +3065,9 @@
         var y = yFor(i);
         svg.appendChild(svgEl("circle", { cx: x, cy: y, r: 10, fill: colorVar }));
         svg.appendChild(svgText(x, y + 3.5, String(i + 1), "node-nr", "middle"));
-        svg.appendChild(svgText(nameX, y - 1, shorten(nameOf(entry), 24), "stopname", anchor));
+        svg.appendChild(svgText(nameX, y - 1,
+          shorten(resolvePlace(entry.place).name.trim() || entry.place.fallback, 24),
+          "stopname", anchor));
         svg.appendChild(svgText(nameX, y + 12,
           "Aufenthalt " + entry.dwell + " s" + (i === 0 ? " (zählt hier nicht)" : ""),
           "dwell-lbl", anchor));
@@ -2873,6 +3115,63 @@
   }
 
   /* ==================================================================
+     Ein Schritt Rückgängig
+
+     Vor jeder Änderung wird der Stand einmal weggelegt. Der Knopf
+     tauscht zwischen vorher und nachher, ein zweiter Druck stellt also
+     den widerrufenen Stand wieder her.
+     ================================================================== */
+
+  var undoState = null;
+  var undoLabel = "";
+  var pendingUndo = null;      // beim Betreten eines Feldes vorgemerkt
+
+  function refreshUndoButton() {
+    btnUndo.disabled = undoState === null;
+    btnUndo.textContent = "Rückgängig";
+    btnUndo.title = undoState === null
+      ? "Noch nichts zum Widerrufen"
+      : "Widerruft: " + undoLabel + " (nochmal drücken stellt es wieder her)";
+  }
+
+  function rememberUndo(label) {
+    undoState = JSON.stringify(currentData());
+    undoLabel = label;
+    refreshUndoButton();
+  }
+
+  // Für Eingabefelder: beim Betreten vormerken, erst bei der ersten
+  // tatsächlichen Änderung als Rückgängig-Stand festhalten. So widerruft
+  // ein Druck die ganze Eingabe und nicht nur das letzte Zeichen.
+  function trackEdit(input, label) {
+    input.addEventListener("focus", function () {
+      pendingUndo = { snapshot: JSON.stringify(currentData()), label: label };
+    });
+    var commit = function () {
+      if (!pendingUndo) { return; }
+      undoState = pendingUndo.snapshot;
+      undoLabel = pendingUndo.label;
+      pendingUndo = null;
+      refreshUndoButton();
+    };
+    input.addEventListener("input", commit);
+    input.addEventListener("change", commit);
+    return input;
+  }
+
+  function performUndo() {
+    if (undoState === null) { return; }
+    var counter = JSON.stringify(currentData());
+    var restore = JSON.parse(undoState);
+    undoState = counter;
+    undoLabel = "Wiederherstellen";
+    pendingUndo = null;
+    applyData(restore);
+    refreshUndoButton();
+    renderSummary();
+  }
+
+  /* ==================================================================
      Szenarien: Zustand einfrieren und wiederherstellen
 
      `currentData()` ist die vollständige, marker- und DOM-freie
@@ -2890,6 +3189,7 @@
       minutes: entry.minutes,
       manual: entry.manual,
       dwell: entry.dwell,
+      savedDwell: (typeof entry.savedDwell === "number") ? entry.savedDwell : null,
       // Streckenlänge der zuführenden Teilstrecke wandert mit: der
       // Routing-Zwischenspeicher existiert auf einem anderen Rechner nicht.
       km: (entry.leg && entry.leg.status === "ok") ? entry.leg.km : null
@@ -2917,6 +3217,8 @@
           fallback: place.fallback,
           lat: place.lat,
           lng: place.lng,
+          waypoint: !!place.waypoint,
+          savedName: place.savedName || null,
           linkedTo: place.linkedTo ? place.linkedTo.id : null,
           unlinkedPos: place.unlinkedPos
             ? { lat: place.unlinkedPos.lat, lng: place.unlinkedPos.lng }
@@ -2954,6 +3256,8 @@
         lng: saved.lng,
         marker: null,
         popupInput: null,
+        waypoint: !!saved.waypoint,
+        savedName: saved.savedName || null,
         linkedTo: null,
         unlinkedPos: saved.unlinkedPos
           ? { lat: saved.unlinkedPos.lat, lng: saved.unlinkedPos.lng }
@@ -3002,6 +3306,7 @@
           minutes: saved.minutes === undefined ? null : saved.minutes,
           manual: !!saved.manual,
           dwell: typeof saved.dwell === "number" ? saved.dwell : 0,
+          savedDwell: typeof saved.savedDwell === "number" ? saved.savedDwell : null,
           leg: null,
           ui: {}
         };
@@ -3085,12 +3390,22 @@
   }
 
   // Alle Zeitpunkte meiner Linie an einem Ort, aus dem Tagesfahrplan.
+  // Läuft über dieselbe reine Funktion wie die Kennzahlen, ergänzt aber
+  // Richtung und Fahrzeug für die Anzeige.
   function eventsAtPlace(place, plan) {
+    var data = currentData();
+    var index = placeIndex(data);
+    var target = index.resolve(resolvePlace(place).id);
+    if (!target) { return []; }
+
     var events = [];
-    var target = resolvePlace(place);
+    var collapsed = {
+      out: plan.totalsOut ? plan.totalsOut.collapsed : collapseData(data.out || [], index),
+      back: plan.totalsBack ? plan.totalsBack.collapsed : collapseData(data.back || [], index)
+    };
 
     plan.trips.forEach(function (trip) {
-      var list = trip.dir === "out" ? dirs.out.entries : dirs.back.entries;
+      var list = collapsed[trip.dir];
       var t = trip.time;
 
       for (var i = 0; i < list.length; i++) {
@@ -3099,7 +3414,7 @@
         }
         var arrival = t;
         var departure = arrival + (i === 0 ? 0 : list[i].dwell);
-        var here = resolvePlace(list[i].place) === target;
+        var here = index.resolve(list[i].place) === target;
 
         if (here && i > 0) {
           events.push({ time: arrival, kind: "an", dir: trip.dir, vehicle: trip.vehicle });
@@ -3129,8 +3444,13 @@
     var target = index.resolve(placeId);
     if (!target) { return events; }
 
+    var collapsedOut = plan.totalsOut ? plan.totalsOut.collapsed : null;
+    var collapsedBack = plan.totalsBack ? plan.totalsBack.collapsed : null;
+
     plan.trips.forEach(function (trip) {
-      var list = trip.dir === "out" ? (data.out || []) : (data.back || []);
+      var list = trip.dir === "out"
+        ? (collapsedOut || collapseData(data.out || [], index))
+        : (collapsedBack || collapseData(data.back || [], index));
       var t = trip.time;
 
       for (var i = 0; i < list.length; i++) {
@@ -3168,11 +3488,11 @@
     var taktSec = (isNaN(takt) || takt <= 0) ? 0 : Math.round(takt * 60);
     var vehicles = taktSec > 0 ? Math.ceil(umlaufSec / taktSec) : null;
 
-    // Eindeutige Orte in Reihenfolge der Hinfahrt
+    // Eindeutige Halte in Reihenfolge der Hinfahrt, Wegpunkte zählen nicht
     var seen = [];
-    out.forEach(function (entry) {
+    tOut.collapsed.forEach(function (entry) {
       var place = index.resolve(entry.place);
-      if (place && seen.indexOf(place) === -1) { seen.push(place); }
+      if (place && !place.waypoint && seen.indexOf(place) === -1) { seen.push(place); }
     });
 
     var metrics = {
@@ -3306,6 +3626,12 @@
     var index = placeIndex(data);
     var tOut = totalsFromData(out, index);
     var tBack = totalsFromData(back, index);
+    var outStops = tOut.collapsed;          // ohne Wegpunkte
+    var backStops = tBack.collapsed;
+
+    if (outStops.length < 2 || backStops.length < 2) {
+      return { error: "Nach Abzug der Wegpunkte bleiben zu wenige Haltestellen übrig." };
+    }
     var wendeEndSec = parseClock(data.wendeEnd);
     var wendeStartSec = parseClock(data.wendeStart);
     var umlaufSec = tOut.totalSeconds + wendeEndSec + tBack.totalSeconds + wendeStartSec;
@@ -3318,8 +3644,8 @@
 
     // Ankunft am Ziel: der Aufenthalt der Endhaltestelle gehört schon zur
     // Standzeit dort und zählt deshalb nicht zur Fahrt bis zur Ankunft.
-    var outRun = tOut.totalSeconds - out[out.length - 1].dwell;
-    var backRun = tBack.totalSeconds - back[back.length - 1].dwell;
+    var outRun = tOut.totalSeconds - outStops[outStops.length - 1].dwell;
+    var backRun = tBack.totalSeconds - backStops[backStops.length - 1].dwell;
 
     var trips = [];
     var truncated = false;
@@ -3358,10 +3684,10 @@
       missing: tOut.missing + tBack.missing,
       totalsOut: tOut,
       totalsBack: tBack,
-      from: dataName(index, out[0]),
-      to: dataName(index, out[out.length - 1]),
-      backFrom: dataName(index, back[0]),
-      backTo: dataName(index, back[back.length - 1])
+      from: dataName(index, outStops[0]),
+      to: dataName(index, outStops[outStops.length - 1]),
+      backFrom: dataName(index, backStops[0]),
+      backTo: dataName(index, backStops[backStops.length - 1])
     };
   }
 
@@ -3392,7 +3718,55 @@
   // Fahrzeit, Aufenthalt und Länge einer Richtung aus gespeicherten Daten.
   // Für die Länge wird der Routing-Cache befragt; fehlt der Eintrag –
   // etwa auf einem anderen Rechner –, zählt die Luftlinie.
-  function totalsFromData(list, index) {
+  // Wegpunkte sind keine Halte: ihre Fahrzeit wandert auf die folgende
+  // echte Haltestelle, ihre Standzeit entfällt. Erster und letzter
+  // Eintrag bleiben immer erhalten - eine Linie braucht Endpunkte.
+  function collapseData(list, index) {
+    var result = [];
+    var carryMinutes = 0;
+    var carryKm = 0;
+    var carryKmKnown = true;
+    var carryMissing = false;
+    var carryManual = false;
+    var carryAny = false;
+
+    list.forEach(function (entry, i) {
+      var place = index.resolve(entry.place);
+      var isWaypoint = !!(place && place.waypoint) && i > 0 && i < list.length - 1;
+
+      if (i > 0) {
+        if (entry.minutes === null || entry.minutes === undefined) { carryMissing = true; }
+        else { carryMinutes += entry.minutes; carryAny = true; }
+        if (entry.manual) { carryManual = true; }
+        if (typeof entry.km === "number") { carryKm += entry.km; }
+        else { carryKmKnown = false; }
+      }
+
+      if (isWaypoint) { return; }
+
+      result.push({
+        place: entry.place,
+        // Fehlt einer Teilzeit der Wert, hat auch die zusammengefasste keine.
+        minutes: (i === 0 || carryMissing) ? null : carryMinutes,
+        manual: carryManual,
+        dwell: entry.dwell,
+        km: (i > 0 && carryKmKnown) ? carryKm : null
+      });
+
+      carryMinutes = 0;
+      carryKm = 0;
+      carryKmKnown = true;
+      carryMissing = false;
+      carryManual = false;
+      carryAny = false;
+    });
+
+    return result;
+  }
+
+  function totalsFromData(rawList, index) {
+    var list = collapseData(rawList, index);
+
     var out = {
       stops: list.length,
       legs: Math.max(0, list.length - 1),
@@ -3400,17 +3774,28 @@
       dwellSeconds: 0,
       totalSeconds: 0,
       missing: 0,
+      manual: 0,
       km: 0,
-      partlyAir: false
+      partlyAir: false,
+      longest: null,
+      collapsed: list
     };
 
     for (var i = 1; i < list.length; i++) {
       out.dwellSeconds += list[i].dwell;
+      if (list[i].manual) { out.manual++; }
 
       if (list[i].minutes === null || list[i].minutes === undefined) {
         out.missing++;
       } else {
         out.driveSeconds += list[i].minutes * 60;
+        if (out.longest === null || list[i].minutes > out.longest.minutes) {
+          out.longest = {
+            minutes: list[i].minutes,
+            from: dataName(index, list[i - 1]),
+            to: dataName(index, list[i])
+          };
+        }
       }
 
       if (typeof list[i].km === "number") {
@@ -3622,8 +4007,8 @@
     bildEmpty.hidden = true;
     bildLegend.hidden = false;
 
-    var out = dirs.out.entries;
-    var back = dirs.back.entries;
+    var out = stopEntries("out");
+    var back = stopEntries("back");
     var posOut = positions(out, false);
     var posBack = positions(back, true);
 
@@ -3650,7 +4035,7 @@
     var PAD_L = 176, PAD_R = 26, PAD_T = 26, PAD_B = 34;
     var PLOT_H = Math.max(300, 44 * Math.max(2, out.length));
     var hours = (tMax - tMin) / 3600;
-    var PLOT_W = Math.max(660, Math.round(hours * 92));
+    var PLOT_W = Math.max(Math.round(660 * bildZoom), Math.round(hours * 92 * bildZoom));
     var W = PAD_L + PLOT_W + PAD_R;
     var H = PAD_T + PLOT_H + PAD_B;
 
@@ -3740,11 +4125,13 @@
      ================================================================== */
 
   // Orte in Reihenfolge der Hinfahrt, jeder Ort nur einmal.
+  // Wegpunkte sind keine Halte und bieten deshalb keine Anschlüsse.
   function connPlaces() {
     var seen = [];
     var out = [];
     dirs.out.entries.forEach(function (entry) {
       var place = resolvePlace(entry.place);
+      if (place.waypoint) { return; }
       if (seen.indexOf(place) === -1) { seen.push(place); out.push(place); }
     });
     return out;
@@ -4178,6 +4565,7 @@
       return;
     }
 
+    rememberUndo("Szenario geladen");
     applyData(record.data);
     scenName.value = record.name;
     markClean();
@@ -4586,6 +4974,7 @@
         return;
       }
 
+      rememberUndo("Liniendaten importiert");
       applyData(result.data);
 
       var lines = [
@@ -4900,52 +5289,12 @@
      Kennzahlen je Richtung
      ================================================================== */
 
+  // Läuft über denselben Weg wie die Kennzahlen gespeicherter Szenarien,
+  // damit Arbeitsansicht und Vergleich nicht auseinanderlaufen können.
   function totalsFor(direction) {
-    var rows = direction.entries;
-    var out = {
-      stops: rows.length,
-      legs: Math.max(0, rows.length - 1),
-      driveSeconds: 0,
-      dwellSeconds: 0,
-      totalSeconds: 0,
-      missing: 0,
-      manual: 0,
-      km: 0,
-      partlyAir: false,
-      longest: null
-    };
-
-    for (var i = 1; i < rows.length; i++) {
-      var entry = rows[i];
-
-      // Aufenthalt zählt an der Ziel-Haltestelle jeder Teilstrecke.
-      out.dwellSeconds += entry.dwell;
-
-      if (entry.manual) { out.manual++; }
-
-      if (entry.minutes === null) {
-        out.missing++;
-      } else {
-        out.driveSeconds += entry.minutes * 60;
-        if (out.longest === null || entry.minutes > out.longest.minutes) {
-          out.longest = {
-            minutes: entry.minutes,
-            from: nameOf(rows[i - 1]),
-            to: nameOf(entry)
-          };
-        }
-      }
-
-      if (entry.leg && entry.leg.status === "ok") {
-        out.km += entry.leg.km;
-      } else {
-        out.km += haversineKm(rows[i - 1].place, entry.place);
-        out.partlyAir = true;
-      }
-    }
-
-    out.totalSeconds = out.driveSeconds + out.dwellSeconds;
-    return out;
+    var data = currentData();
+    var index = placeIndex(data);
+    return totalsFromData(direction === dirs.out ? data.out : data.back, index);
   }
 
   /* ==================================================================
@@ -4984,6 +5333,7 @@
   var lineInput = document.getElementById("lineNo");
   var factorInput = document.getElementById("busFactor");
   var dwellInput = document.getElementById("defaultDwell");
+  var btnUndo = document.getElementById("btnUndo");
   var btnFit = document.getElementById("btnFit");
   var btnRetry = document.getElementById("btnRetry");
   var btnClear = document.getElementById("btnClear");
@@ -4991,7 +5341,6 @@
   var btnPrint = document.getElementById("btnPrint");
   var mapHint = document.getElementById("mapHint");
   var lockButton = document.getElementById("btnLock");
-  var lockIcon = document.getElementById("lockIcon");
   var lockText = document.getElementById("lockText");
   var lockHint = document.getElementById("lockHint");
   var subOut = document.getElementById("subOut");
@@ -5201,7 +5550,9 @@
 
   function renderSummary() {
     var rows = entries();
-    var n = rows.length;
+    var realRows = rows.filter(function (e) { return !resolvePlace(e.place).waypoint; });
+    var n = realRows.length;
+    var waypoints = rows.length - n;
 
     var tOut = totalsFor(dirs.out);
     var tBack = totalsFor(dirs.back);
@@ -5255,8 +5606,10 @@
     if (places.length === 0) {
       statusEl.textContent = "Noch keine Haltestellen";
     } else {
+      var realPlaces = places.filter(function (place) { return !place.waypoint; });
       var bits = [
-        [places.length + " " + plural(places.length, "Haltestelle", "Haltestellen"), null],
+        [realPlaces.length + " " + plural(realPlaces.length, "Haltestelle", "Haltestellen") +
+          (waypoints > 0 ? " + " + waypoints + " " + plural(waypoints, "Wegpunkt", "Wegpunkte") : ""), null],
         [road + " Teilstrecken über Straße", "road"]
       ];
       if (pending) { bits.push([pending + " in Berechnung", "pending"]); }
@@ -5281,7 +5634,7 @@
     }
 
     if (n === 1) {
-      headlineEl.textContent = dir().label + ": nur eine Haltestelle (" + nameOf(rows[0]) +
+      headlineEl.textContent = dir().label + ": nur eine Haltestelle (" + nameOf(realRows[0]) +
         ") – setze mindestens eine weitere, damit eine Fahrzeit entsteht.";
       detailsEl.hidden = true;
       warnEl.hidden = true;
@@ -5291,7 +5644,7 @@
     // Kernsatz mit Kontext für die angezeigte Richtung. Fehlt jede
     // Fahrzeit, wäre eine Minutenzahl aus reiner Aufenthaltszeit
     // irreführend – dann sagt der Satz das offen.
-    var route = dir().label + " " + nameOf(rows[0]) + " → " + nameOf(rows[n - 1]);
+    var route = dir().label + " " + nameOf(realRows[0]) + " → " + nameOf(realRows[n - 1]);
     var overStops = " über " + n + " " + plural(n, "Haltestelle", "Haltestellen");
 
     if (tActive.legs > 0 && tActive.missing === tActive.legs) {
@@ -5395,8 +5748,7 @@
     });
 
     lockButton.setAttribute("aria-pressed", editingLocked ? "true" : "false");
-    lockIcon.textContent = editingLocked ? "🔒" : "🔓";
-    lockText.textContent = editingLocked ? "gesperrt" : "entsperrt";
+    lockText.textContent = editingLocked ? "Bearbeitung gesperrt" : "Bearbeitung entsperrt";
     lockHint.textContent = editingLocked
       ? "Karte nur ansehen"
       : "Klick setzt Haltestelle";
@@ -5469,6 +5821,42 @@
     if (button) { setView(button.getAttribute("data-view")); }
   });
 
+  // Vollbild für die Karte. Fällt die Browser-Schnittstelle aus, bleibt
+  // es bei der ohnehin vergrößerten Standardhöhe.
+  function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function toggleFullscreen() {
+    var card = mapCard;
+    if (fullscreenElement()) {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) { exit.call(document); }
+      return;
+    }
+    var request = card.requestFullscreen || card.webkitRequestFullscreen;
+    if (!request) {
+      window.alert("Der Browser bietet keine Vollbild-Ansicht an.\n" +
+                   "Die Karte lässt sich stattdessen über das Fenster vergrößern.");
+      return;
+    }
+    var result = request.call(card);
+    if (result && result.catch) { result.catch(function () {}); }
+  }
+
+  function onFullscreenChange() {
+    var active = !!fullscreenElement();
+    btnFullscreen.textContent = active ? "Vollbild verlassen" : "Vollbild";
+    btnFullscreen.title = active
+      ? "Vollbild verlassen (Esc)"
+      : "Karte im Vollbild anzeigen";
+    window.setTimeout(function () { map.invalidateSize(); }, 120);
+  }
+
+  btnFullscreen.addEventListener("click", toggleFullscreen);
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+
   lockButton.addEventListener("click", function () {
     editingLocked = !editingLocked;
     applyLock();
@@ -5498,6 +5886,12 @@
     });
   });
 
+  trackEdit(wendeEndInput, "Wendezeit geändert");
+  trackEdit(wendeStartInput, "Wendezeit geändert");
+  trackEdit(taktInput, "Takt geändert");
+  trackEdit(factorInput, "Bus-Faktor geändert");
+  btnUndo.addEventListener("click", performUndo);
+
   noTaktInput.addEventListener("change", renderSummary);
 
   [connMinInput, connGoodInput].forEach(function (input) {
@@ -5520,6 +5914,25 @@
   scenName.addEventListener("keydown", function (e) {
     if (e.key === "Enter") { saveScenario(); }
   });
+
+  function setBildZoom(value) {
+    bildZoom = value;
+    bildZoomText.textContent = Math.round(bildZoom * 100) + " %";
+    btnBildOut.disabled = bildZoom <= BILD_ZOOM_STEPS[0];
+    btnBildIn.disabled = bildZoom >= BILD_ZOOM_STEPS[BILD_ZOOM_STEPS.length - 1];
+    if (activeView === "bild") { renderBild(); }
+  }
+
+  function stepBildZoom(direction) {
+    var index = BILD_ZOOM_STEPS.indexOf(bildZoom);
+    if (index === -1) { index = BILD_ZOOM_STEPS.indexOf(1); }
+    var next = Math.min(BILD_ZOOM_STEPS.length - 1, Math.max(0, index + direction));
+    setBildZoom(BILD_ZOOM_STEPS[next]);
+  }
+
+  btnBildIn.addEventListener("click", function () { stepBildZoom(1); });
+  btnBildOut.addEventListener("click", function () { stepBildZoom(-1); });
+  btnBildReset.addEventListener("click", function () { setBildZoom(1); });
 
   btnLineImport.addEventListener("click", function () { lineFile.click(); });
   btnLineTemplate.addEventListener("click", downloadLineTemplate);
@@ -5567,6 +5980,7 @@
 
   btnTaktrein.addEventListener("click", function () {
     if (taktGap <= 0) { return; }
+    rememberUndo("Taktrein gemacht");
     verteileTaktLuecke(taktGap);
     renderSummary();
   });
@@ -5583,11 +5997,14 @@
     if (places.length === 0) { return; }
     if (window.confirm("Wirklich alle " + places.length +
                        " Haltestellen in beiden Richtungen löschen?")) {
+      rememberUndo("Alle Haltestellen gelöscht");
       clearAll();
     }
   });
 
   renderAll();
+  refreshUndoButton();
+  setBildZoom(1);
   fillScenSelect(loadStore(), null);
   markClean();
   applyLock();
