@@ -35,7 +35,10 @@
     --stand: #7c848c;        /* Wende- und Standzeiten */
 
     /* # | Haltestelle | Koordinaten | Aufenthalt | Rolle | Aktion */
-    --grid: 24px minmax(96px, 1fr) 104px 112px 68px 172px;
+    /* Der Name bekommt den freien Platz, aber nur bis zu einer lesbaren
+       Breite - der Rest geht an die rechte Spalte, damit die Angaben auf
+       breiten Bildschirmen nicht quer über den Schirm auseinanderfallen. */
+    --grid: 24px minmax(96px, 440px) 104px 112px 68px minmax(172px, 1fr);
   }
 
   * { box-sizing: border-box; }
@@ -55,10 +58,20 @@
     font-feature-settings: "tnum" 1;
   }
 
+  /* Ein Dispositionswerkzeug lebt von breiten Tabellen - der Inhalt nutzt
+     deshalb die Fensterbreite bis zu einer großzügigen Obergrenze aus. */
   .wrap {
-    max-width: 1040px;
+    max-width: 1760px;
     margin: 0 auto;
-    padding: 14px 14px 40px;
+    padding: 14px 18px 40px;
+  }
+
+  /* Breite Tabellen bekommen ihren eigenen Scrollbereich. Die Ansichten
+     selbst kappen mit overflow:hidden ihre Ecken, deshalb wäre eine zu
+     breite Tabelle dort sonst abgeschnitten und unerreichbar. */
+  .xscroll {
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   /* ---------- Kopfbereich ---------- */
@@ -949,6 +962,8 @@
     color: var(--muted-2);
   }
 
+  #connTables, .pin-scroll { overflow-x: auto; overflow-y: hidden; }
+
   .starcol { width: 30px; text-align: center !important; }
 
   table.conn.compact td:nth-child(2),
@@ -1572,7 +1587,8 @@
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .bild-scroll { overflow: visible; }
+    /* Auf Papier gibt es kein Scrollen - alles muss stehen bleiben. */
+    .bild-scroll, .cmp-scroll, .xscroll, #connTables, .pin-scroll { overflow: visible; }
     svg.bild { width: 100% !important; height: auto; }
     header.app .sub { display: none; }
     .printhead {
@@ -1704,6 +1720,7 @@
 
   <!-- Listenansicht: dichte Tabelle zum Nachprüfen und Ausdrucken -->
   <div class="table" id="viewList" hidden>
+    <div class="xscroll">
     <table class="sheet">
       <thead>
         <tr>
@@ -1719,6 +1736,7 @@
       <tbody id="sheetBody"></tbody>
       <tfoot id="sheetFoot"></tfoot>
     </table>
+    </div>
   </div>
 
   <!-- Schemaansicht: die ganze Linie als geschlossener Kreislauf -->
@@ -1749,6 +1767,7 @@
     </div>
     <div class="veh-legend" id="planLegend" hidden></div>
     <div class="empty" id="planEmpty" hidden></div>
+    <div class="xscroll">
     <table class="sheet plan" id="planTable" hidden>
       <thead>
         <tr>
@@ -1761,6 +1780,7 @@
       </thead>
       <tbody id="planBody"></tbody>
     </table>
+    </div>
   </div>
 
   <!-- Bildfahrplan: Weg-Zeit-Diagramm aller Fahrzeugumläufe -->
@@ -4601,8 +4621,12 @@
     // ganzer Betriebstag nicht ins Riesenhafte läuft.
     var PLOT_H = Math.max(340, 60 * Math.max(2, out.length));
     var hours = (tMax - tMin) / 3600;
-    // Breite Zeitachse: die Grafik soll quer liegen, nicht hochkant.
-    var PLOT_W = Math.max(Math.round(1180 * bildZoom), Math.round(hours * 150 * bildZoom));
+    // Breite Zeitachse: die Grafik soll quer liegen, nicht hochkant. Bei
+    // 100 % füllt sie den vorhandenen Platz - auf breiten Bildschirmen und
+    // im Vollbild also mehr als die 1180 px Untergrenze.
+    var room = bildScroll.clientWidth - PAD_L - PAD_R - 4;
+    var baseW = Math.max(1180, room > 0 ? room : 0);
+    var PLOT_W = Math.max(Math.round(baseW * bildZoom), Math.round(hours * 150 * bildZoom));
     PLOT_H = Math.max(PLOT_H, Math.min(Math.round(PLOT_W / 2.6), 620));
 
     var W = PAD_L + PLOT_W + PAD_R;
@@ -5277,7 +5301,11 @@
     });
 
     table.appendChild(tbody);
-    connPinned.appendChild(table);
+
+    var scroll = document.createElement("div");
+    scroll.className = "pin-scroll";
+    scroll.appendChild(table);
+    connPinned.appendChild(scroll);
     restorePinFocus(focusState);
   }
 
