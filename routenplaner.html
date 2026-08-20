@@ -38,7 +38,7 @@
     /* Der Name bekommt den freien Platz, aber nur bis zu einer lesbaren
        Breite - der Rest geht an die rechte Spalte, damit die Angaben auf
        breiten Bildschirmen nicht quer über den Schirm auseinanderfallen. */
-    --grid: 24px minmax(96px, 440px) 104px 112px 68px minmax(172px, 1fr);
+    --grid: 22px 24px minmax(96px, 440px) 104px 112px 68px minmax(172px, 1fr);
   }
 
   * { box-sizing: border-box; }
@@ -526,6 +526,27 @@
     line-height: 1;
     color: var(--muted);
   }
+
+  /* Auswahlspalte für die Sammelbearbeitung */
+  .selbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .selbox input {
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+
+  .thead .c-sel { text-align: center; cursor: help; }
+
+  .stop.picked { background: #f2f6fa; }
+  .stop.picked:hover { background: #edf3f8; }
+
+  .bulkbar .dwell { gap: 3px; }
+  .bulkbar .field { gap: 5px; }
 
   /* Aufenthaltsfeld */
   .dwell {
@@ -1570,7 +1591,7 @@
   .printhead { display: none; }
 
   @media (max-width: 720px) {
-    :root { --grid: 22px minmax(90px, 1fr) 86px; }
+    :root { --grid: 20px 22px minmax(90px, 1fr) 86px; }
     .thead .c-dwell, .thead .c-role, .thead .c-act,
     .stop .role { display: none; }
     .stop .dwell, .stop .actions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 30px; }
@@ -1603,7 +1624,8 @@
     }
     .wrap { max-width: none; padding: 0; }
     .map-card, .switchbar, .toolbar, .foot, .controls,
-    .stop .actions, button.reset { display: none !important; }
+    .stop .actions, button.reset,
+    .bulkbar, .thead .c-sel, .stop .selbox { display: none !important; }
     .table, .summary { border-color: #999; break-inside: avoid; }
     .thead, table.sheet th, .summary .head, table.sheet tfoot td { background: #eee !important; }
     input {
@@ -1707,7 +1729,36 @@
 
   <!-- Kartenansicht: Haltestellen mit Teilstrecken dazwischen -->
   <div class="table" id="viewMap">
+    <!-- Sammelbearbeitung der Aufenthaltszeiten: markieren, dann setzen -->
+    <div class="planbar bulkbar" id="bulkBar" hidden>
+      <span class="cap">Auswahl</span>
+      <button id="btnSelAll" type="button" title="Alle Haltestellen dieser Richtung markieren">Alle</button>
+      <button id="btnSelNone" type="button" title="Markierung aufheben">Keine</button>
+      <label class="field">
+        mit Aufenthalt
+        <select id="selDwellValue" aria-label="Aufenthaltswert für die Schnellauswahl"></select>
+      </label>
+      <button id="btnSelValue" type="button" title="Alle Haltestellen mit genau diesem Aufenthalt markieren">Diese markieren</button>
+      <label class="field">
+        Ausgewählte auf
+        <span class="dwell">
+          <input id="bulkMin" class="secs" type="number" min="0" step="1" value="0"
+                 aria-label="Neuer Aufenthalt, Minuten">
+          <span>m</span>
+          <input id="bulkSec" class="secs" type="number" min="0" step="5" value="20"
+                 aria-label="Neuer Aufenthalt, Sekunden">
+          <span>s</span>
+        </span>
+      </label>
+      <button id="btnBulkApply" type="button" disabled>Setzen</button>
+      <label class="toggle">
+        <input id="bulkBoth" type="checkbox">
+        beide Richtungen
+      </label>
+      <span class="planinfo" id="bulkInfo"></span>
+    </div>
     <div class="thead">
+      <span class="c-sel" title="Zum Sammeln markieren">✓</span>
       <span>#</span>
       <span>Haltestelle</span>
       <span>Koordinaten</span>
@@ -2973,6 +3024,124 @@
     });
   }
 
+  /* ------------------------------------------------------------------
+     Sammelbearbeitung der Aufenthaltszeiten
+
+     Die Markierung hängt am Ort, nicht am Eintrag einer Richtung -
+     dadurch bleibt sie beim Richtungswechsel bestehen und "beide
+     Richtungen" trifft dieselben Haltestellen auf beiden Seiten.
+     ------------------------------------------------------------------ */
+
+  var pickedPlaces = {};
+
+  function isPicked(place) {
+    return !!pickedPlaces[place.id];
+  }
+
+  // Nur echte Haltestellen der angezeigten Richtung - Wegpunkte haben
+  // keine Aufenthaltszeit und lassen sich deshalb nicht markieren.
+  function pickableEntries() {
+    return entries().filter(function (entry) {
+      return !resolvePlace(entry.place).waypoint;
+    });
+  }
+
+  function pickedCount() {
+    var count = 0;
+    pickableEntries().forEach(function (entry) {
+      if (isPicked(resolvePlace(entry.place))) { count++; }
+    });
+    return count;
+  }
+
+  // Welche Aufenthaltswerte kommen in dieser Richtung überhaupt vor?
+  // Daraus wird die Schnellauswahl gefüllt - typisch die vielen
+  // Haltestellen, die noch auf der 20-Sekunden-Vorgabe stehen.
+  function dwellChoices() {
+    var counts = {};
+    pickableEntries().forEach(function (entry) {
+      counts[entry.dwell] = (counts[entry.dwell] || 0) + 1;
+    });
+
+    return Object.keys(counts).map(Number).sort(function (a, b) {
+      // Häufigster Wert zuerst, bei Gleichstand der kleinere.
+      if (counts[b] !== counts[a]) { return counts[b] - counts[a]; }
+      return a - b;
+    }).map(function (value) {
+      return { seconds: value, count: counts[value] };
+    });
+  }
+
+  function updateBulkBar() {
+    if (!bulkBar) { return; }
+
+    var pickable = pickableEntries();
+    bulkBar.hidden = activeView !== "map" || pickable.length === 0;
+    if (bulkBar.hidden) { return; }
+
+    // Auswahlliste neu aufbauen, dabei die bisherige Wahl behalten.
+    var wanted = selDwellValue.value;
+    var choices = dwellChoices();
+    selDwellValue.textContent = "";
+    choices.forEach(function (choice) {
+      var option = document.createElement("option");
+      option.value = String(choice.seconds);
+      option.textContent = clock(choice.seconds) + "  (" + choice.count + " " +
+        plural(choice.count, "Haltestelle", "Haltestellen") + ")";
+      selDwellValue.appendChild(option);
+    });
+    if (wanted !== "" && selDwellValue.querySelector('option[value="' + wanted + '"]')) {
+      selDwellValue.value = wanted;
+    }
+    btnSelValue.disabled = choices.length === 0;
+
+    var picked = pickedCount();
+    btnBulkApply.disabled = picked === 0;
+    btnBulkApply.title = picked === 0
+      ? "Erst Haltestellen markieren"
+      : "Aufenthalt von " + picked + " " + plural(picked, "Haltestelle", "Haltestellen") +
+        " auf " + clock(bulkSeconds()) + " setzen" +
+        (bulkBothBox.checked ? " – in beiden Richtungen" : " – nur in der " + dir().label);
+
+    bulkInfo.textContent = picked === 0
+      ? "Noch nichts markiert – die Häkchen links wählen die Haltestellen aus."
+      : picked + " von " + pickable.length + " " +
+        plural(pickable.length, "Haltestelle", "Haltestellen") + " markiert" +
+        (bulkBothBox.checked ? "  ·  wirkt auf beide Richtungen" : "  ·  wirkt nur auf " + dir().label);
+  }
+
+  function bulkSeconds() {
+    var read = function (input) {
+      var parsed = parseInt(String(input.value).trim(), 10);
+      return (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+    };
+    return read(bulkMinInput) * 60 + read(bulkSecInput);
+  }
+
+  function applyBulkDwell() {
+    var seconds = bulkSeconds();
+    var keys = bulkBothBox.checked ? DIR_KEYS : [activeDir];
+
+    // Nur markierte, echte Haltestellen - Wegpunkte bleiben außen vor.
+    var betroffen = [];
+    keys.forEach(function (key) {
+      dirs[key].entries.forEach(function (entry) {
+        var place = resolvePlace(entry.place);
+        if (!place.waypoint && isPicked(place)) { betroffen.push(entry); }
+      });
+    });
+
+    if (betroffen.length === 0) { return; }
+
+    // Erst sichern, dann ändern - sonst hielte der Widerruf den neuen Stand fest.
+    rememberUndo("Aufenthalt gesetzt");
+    betroffen.forEach(function (entry) { entry.dwell = seconds; });
+
+    refreshRows();
+    renderSummary();
+    updateBulkBar();
+  }
+
   function buildStopRow(entry, i, total) {
     var isStart = i === 0;
     var isEnd = i === total - 1 && total > 1;
@@ -2981,7 +3150,26 @@
     var number = stopNumbers(entries()).numbers[i];
 
     var li = document.createElement("li");
-    li.className = "stop" + (isWaypoint ? " is-waypoint" : "");
+    li.className = "stop" + (isWaypoint ? " is-waypoint" : "") +
+      (!isWaypoint && isPicked(place) ? " picked" : "");
+
+    var selCell = document.createElement("span");
+    selCell.className = "selbox";
+    if (!isWaypoint) {
+      var pick = document.createElement("input");
+      pick.type = "checkbox";
+      pick.checked = isPicked(place);
+      pick.setAttribute("aria-label", "Haltestelle für die Sammelbearbeitung markieren");
+      pick.title = "Markieren, um die Aufenthaltszeit gemeinsam mit anderen zu setzen";
+      pick.addEventListener("change", function () {
+        if (pick.checked) { pickedPlaces[place.id] = true; }
+        else { delete pickedPlaces[place.id]; }
+        li.classList.toggle("picked", pick.checked);
+        updateBulkBar();
+      });
+      selCell.appendChild(pick);
+    }
+    li.appendChild(selCell);
 
     var badge = document.createElement("span");
     badge.className = "badge editable" + (isWaypoint ? " is-way"
@@ -3315,6 +3503,17 @@
   var connTables = document.getElementById("connTables");
   var connEmpty = document.getElementById("connEmpty");
   var connInfo = document.getElementById("connInfo");
+  var bulkBar = document.getElementById("bulkBar");
+  var bulkInfo = document.getElementById("bulkInfo");
+  var bulkMinInput = document.getElementById("bulkMin");
+  var bulkSecInput = document.getElementById("bulkSec");
+  var bulkBothBox = document.getElementById("bulkBoth");
+  var btnSelAll = document.getElementById("btnSelAll");
+  var btnSelNone = document.getElementById("btnSelNone");
+  var btnSelValue = document.getElementById("btnSelValue");
+  var btnBulkApply = document.getElementById("btnBulkApply");
+  var selDwellValue = document.getElementById("selDwellValue");
+
   var connMinInput = document.getElementById("connMin");
   var connGoodInput = document.getElementById("connGood");
   var opStartInput = document.getElementById("opStart");
@@ -4553,6 +4752,29 @@
     });
   }
 
+  // Die Namen und Hilfslinien der Achse stammen aus der Hinfahrt. Die
+  // Rückfahrt muss deshalb dieselben Höhen benutzen: Sonst bekäme
+  // dieselbe Haltestelle je Richtung eine eigene Höhe, sobald sich die
+  // Fahrzeiten je Richtung unterscheiden - und der waagerechte
+  // Aufenthaltsstrich läge neben der Linie, die ihren Namen trägt.
+  // Haltestellen, die es nur in der Rückfahrt gibt, behalten ihre eigene
+  // Höhe; etwas Besseres gibt die Achse für sie nicht her.
+  function positionsAlong(entriesList, reference, referencePos, reversed) {
+    var byPlace = {};
+    reference.forEach(function (entry, i) {
+      var place = entry.place;
+      if (place && byPlace[place.id] === undefined) { byPlace[place.id] = referencePos[i]; }
+    });
+
+    var own = positions(entriesList, reversed);
+
+    return entriesList.map(function (entry, i) {
+      var place = entry.place;
+      var known = place ? byPlace[place.id] : undefined;
+      return known === undefined ? own[i] : known;
+    });
+  }
+
   // Stützpunkte einer einzelnen Fahrt: an jeder Haltestelle ein Knick,
   // während des Aufenthalts eine waagerechte Strecke.
   function tripPoints(entriesList, posList, departure) {
@@ -4593,7 +4815,7 @@
     var out = stopEntries("out");
     var back = stopEntries("back");
     var posOut = positions(out, false);
-    var posBack = positions(back, true);
+    var posBack = positionsAlong(back, out, posOut, true);
 
     // Linienzug je Fahrzeug: die Fahrten in zeitlicher Folge aneinander
     // gehängt, die Standzeiten dazwischen ergeben die waagerechten Stücke.
@@ -6927,6 +7149,7 @@
       if (activeView === "conn") { editorShape = null; }
     }
     refreshRows();
+    updateBulkBar();
   }
 
   // Zieht den Sperrzustand auf Marker, Karte und Anzeige nach.
@@ -7113,6 +7336,34 @@
   });
 
   wendeWarnInput.addEventListener("input", renderSummary);
+
+  // Sammelbearbeitung der Aufenthaltszeiten
+  btnSelAll.addEventListener("click", function () {
+    pickableEntries().forEach(function (entry) {
+      pickedPlaces[resolvePlace(entry.place).id] = true;
+    });
+    renderBody();
+  });
+
+  btnSelNone.addEventListener("click", function () {
+    pickedPlaces = {};
+    renderBody();
+  });
+
+  btnSelValue.addEventListener("click", function () {
+    var wanted = parseInt(selDwellValue.value, 10);
+    if (isNaN(wanted)) { return; }
+    pickableEntries().forEach(function (entry) {
+      if (entry.dwell === wanted) { pickedPlaces[resolvePlace(entry.place).id] = true; }
+    });
+    renderBody();
+  });
+
+  btnBulkApply.addEventListener("click", applyBulkDwell);
+  bulkBothBox.addEventListener("change", updateBulkBar);
+  [bulkMinInput, bulkSecInput].forEach(function (input) {
+    input.addEventListener("input", updateBulkBar);
+  });
 
   btnScenSave.addEventListener("click", saveScenario);
   btnScenLoad.addEventListener("click", loadScenario);
