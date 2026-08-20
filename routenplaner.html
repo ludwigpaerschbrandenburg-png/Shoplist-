@@ -4957,18 +4957,27 @@
       box.appendChild(span);
     }
 
-    // Ausgeschriebene Zeiten der Beispielfahrt - erspart das Kopfrechnen.
+    // Zweite Zeile der Beispielfahrt: wie lange es noch bis zur nächsten
+    // Fahrt des Anschlusses dauert und wie lange die letzte schon her ist.
+    // Anders als die Differenz oben benennt sie beide Richtungen einzeln.
     var sentence = "";
     if (summary.sample) {
+      var bis = Math.round((summary.sample.next - summary.sample.myTime) / 60);
+      var seit = Math.round((summary.sample.myTime - summary.sample.prev) / 60);
+
       var when = document.createElement("i");
       when.className = "when";
-      when.textContent = " nächste " + hhmm(summary.sample.next) +
-        " · letzte " + hhmm(summary.sample.prev);
+      when.textContent = " " + (bis === 0 ? "nächste jetzt" : "nächste in " + bis + " Min.") +
+        " · " + (seit === 0 ? "letzte jetzt" : "letzte vor " + seit + " Min.");
       box.appendChild(when);
 
+      // Im Tooltip bleiben die festen Uhrzeiten stehen, dort helfen sie
+      // beim Einordnen in den Tagesfahrplan.
       sentence = " Bei meiner Fahrt um " + hhmm(summary.sample.myTime) + ": nächste " +
-        connName + " um " + hhmm(summary.sample.next) + ", letzte ist um " +
-        hhmm(summary.sample.prev) + " losgefahren.";
+        connName + (bis === 0 ? " jetzt" : " in " + bis + " Min.") +
+        " (" + hhmm(summary.sample.next) + "), letzte ist " +
+        (seit === 0 ? "gerade" : "vor " + seit + " Min.") + " losgefahren (" +
+        hhmm(summary.sample.prev) + ").";
     }
 
     box.title = summary.count + " Übergänge am Tag" +
