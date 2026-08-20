@@ -935,21 +935,19 @@
     line-height: 1;
   }
 
-  input.pin-secs {
-    width: 58px;
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    padding: 2px 5px;
-    font: inherit;
-    font-weight: 600;
-    color: var(--text);
-    text-align: right;
-    background: var(--panel);
-    font-variant-numeric: tabular-nums;
+  .pin-cap {
+    padding: 0 9px 3px;
+    font-size: 11px;
+    color: var(--muted-2);
   }
 
-  input.pin-secs:focus { outline: none; border-color: var(--accent); }
-  input.pin-secs.idle { color: var(--muted-2); background: var(--panel-alt); }
+  .pin-dwell-fields input.secs { width: 42px; font-weight: 600; }
+
+  .pin-none {
+    padding: 2px 9px 9px;
+    font-size: 11.5px;
+    color: var(--muted-2);
+  }
 
   .starcol { width: 30px; text-align: center !important; }
 
@@ -1527,6 +1525,15 @@
     font-size: 11.5px;
   }
 
+  /* Kein Fehler, nur ein Hinweis - deshalb ruhiger als die Warnung. */
+  .summary .warn.soft {
+    background: var(--panel-alt);
+    border-color: var(--line);
+    color: var(--muted);
+  }
+
+  .radioset .help { cursor: help; text-decoration: underline dotted; }
+
   .loaderr {
     background: #f6ece9;
     border: 1px solid #dcbfb8;
@@ -1941,17 +1948,26 @@
               </label>
               <label class="toggle">
                 <input type="radio" name="taktziel" value="both">
-                beide (hälftig)
+                <span class="help"
+                      title="Verteilt den fehlenden Betrag je zur Hälfte auf Start- und Ziel-Wendezeit. Eine ungerade Sekunde geht an die Ziel-Wendezeit.">beide (hälftig)</span>
               </label>
             </span>
             <label class="toggle">
               <input id="noTakt" type="checkbox">
               Kein Takt-Ziel
             </label>
+            <label class="field">
+              Hinweis ab
+              <input id="wendeWarn" class="takt-in" type="number" min="0" step="1" value="15"
+                     aria-label="Wendezeit, ab der ein Hinweis erscheint, in Minuten"
+                     title="Ab dieser Wendezeit weist der Planer darauf hin, dass der Ausgleich ungewöhnlich lang wird">
+              Min. Wende
+            </label>
           </div>
         </div>
 
         <div class="warn" id="warnTakt" hidden></div>
+        <div class="warn soft" id="warnWende" hidden></div>
         <div class="warn" id="warnLoop" hidden></div>
       </div>
     </div>
@@ -1991,7 +2007,11 @@
 
     // OSRM setzt Koordinaten auf die nächste Straße. Liegt eine
     // Haltestelle weiter als das entfernt, ist der Treffer unbrauchbar.
-    maxSnapMeters: 2000
+    maxSnapMeters: 2000,
+
+    // Ab dieser Wendezeit weist der Taktrein-Knopf darauf hin, dass der
+    // Ausgleich ungewöhnlich lang wird. Im Kopf des Werkzeugs änderbar.
+    wendeWarnMinutes: 15
   };
 
   if (typeof L === "undefined") {
@@ -3549,6 +3569,7 @@
       opEnd: opEndInput.value,
       connMin: connMinInput.value,
       connGood: connGoodInput.value,
+      wendeWarn: wendeWarnInput.value,
       shiftOut: shiftOut,
       shiftBack: shiftBack,
       places: places.map(function (place) {
@@ -3671,6 +3692,7 @@
     setValue(bildEndInput, data.opEnd, "23:30");
     setValue(connMinInput, data.connMin, "2");
     setValue(connGoodInput, data.connGood, "4");
+    setValue(wendeWarnInput, data.wendeWarn, String(CONFIG.wendeWarnMinutes));
     noTaktInput.checked = !!data.noTakt;
     shiftOut = Math.round(asNumber(data.shiftOut) || 0);
     shiftBack = Math.round(asNumber(data.shiftBack) || 0);
@@ -4741,6 +4763,8 @@
         : list.length + " " + plural(list.length, "Anschluss", "Anschlüsse");
       head.appendChild(count);
 
+      head.appendChild(makePinButton(place));
+
       var add = document.createElement("button");
       add.type = "button";
       add.textContent = "+ Anschluss";
@@ -4938,6 +4962,48 @@
   var onlyStarred = false;
   var pinnedPlaceId = null;
 
+  // Anheften gehört zu jeder Haltestelle, auch ohne Anschluss - deshalb
+  // steht der Knopf im Anschluss-Editor an jeder Haltestelle und in der
+  // Übersichtstabelle zusätzlich bei der ersten Zeile einer Haltestelle.
+  // Beide zeigen denselben Zustand und werden gemeinsam nachgeführt.
+  function setPinState(pin, isPinned) {
+    pin.setAttribute("aria-pressed", isPinned ? "true" : "false");
+    pin.firstChild.textContent = isPinned ? "\u25c6" : "\u25c7";
+    pin.lastChild.textContent = isPinned ? "Angeheftet" : "Anheften";
+    pin.title = isPinned
+      ? "Haltestelle wieder lösen"
+      : "Diese Haltestelle anheften – oben erscheint sie mit beiden Richtungen " +
+        "und ihrer Aufenthaltszeit zum Ausprobieren";
+  }
+
+  function makePinButton(place) {
+    var pin = document.createElement("button");
+    pin.type = "button";
+    pin.className = "pinbtn";
+    pin.setAttribute("data-place", String(place.id));
+
+    var glyph = document.createElement("span");
+    glyph.className = "pinglyph";
+    pin.appendChild(glyph);
+    pin.appendChild(document.createTextNode(""));
+
+    pin.addEventListener("click", function () {
+      pinnedPlaceId = (pinnedPlaceId === place.id) ? null : place.id;
+      renderConnTables();
+    });
+
+    setPinState(pin, pinnedPlaceId === place.id);
+    return pin;
+  }
+
+  function syncPinButtons() {
+    var pinned = pinnedPlaceId === null ? null : String(pinnedPlaceId);
+    var buttons = document.querySelectorAll("button.pinbtn[data-place]");
+    for (var i = 0; i < buttons.length; i++) {
+      setPinState(buttons[i], buttons[i].getAttribute("data-place") === pinned);
+    }
+  }
+
   // Zubringer: mein Bus kommt an, die Fahrgäste steigen in den Anschluss.
   // Abbringer: mein Bus fährt ab, die Fahrgäste kamen mit dem Anschluss.
   var CONN_KINDS = [
@@ -4986,8 +5052,25 @@
   // Angeheftete Haltestelle: beide Richtungen nebeneinander, dazu die
   // Aufenthaltszeit je Richtung direkt zum Verstellen. Jede Änderung
   // rechnet die Übergänge sofort neu.
+  // Beim Neuzeichnen den Fokus im Aufenthaltsfeld behalten - das Panel
+  // wird bei jeder Eingabe komplett neu gebaut, sonst bräche das Tippen
+  // nach dem ersten Zeichen ab.
+  function pinFocusState() {
+    var el = document.activeElement;
+    if (!el || !el.getAttribute || !el.getAttribute("data-pinfield")) { return null; }
+    return { key: el.getAttribute("data-pinfield") };
+  }
+
+  function restorePinFocus(state) {
+    if (!state) { return; }
+    var el = connPinned.querySelector('[data-pinfield="' + state.key + '"]');
+    if (el) { el.focus(); }
+  }
+
   function renderPinned(plan) {
+    var focusState = pinFocusState();
     connPinned.textContent = "";
+    syncPinButtons();
 
     var place = null;
     connPlaces().forEach(function (candidate) {
@@ -5019,7 +5102,13 @@
     connPinned.appendChild(head);
 
     // Aufenthalt je Richtung - derselbe Ort kann in Hin und Rück
-    // unterschiedlich lange halten.
+    // unterschiedlich lange halten. Eingegeben wird er wie überall sonst
+    // zweiteilig als Minuten und Sekunden.
+    var dwellCap = document.createElement("div");
+    dwellCap.className = "pin-cap";
+    dwellCap.textContent = "Aufenthaltszeit (Wartezeit an dieser Haltestelle)";
+    connPinned.appendChild(dwellCap);
+
     var dwellRow = document.createElement("div");
     dwellRow.className = "pin-dwell";
 
@@ -5041,31 +5130,67 @@
       var isFirst = dirs[key].entries.length > 0 &&
         resolvePlace(dirs[key].entries[0].place) === place;
 
-      var field = document.createElement("input");
-      field.type = "number";
-      field.min = "0";
-      field.step = "5";
-      field.className = "pin-secs";
-      field.value = String(entry.dwell);
+      var field = document.createElement("span");
+      field.className = "dwell pin-dwell-fields" + (isFirst ? " idle" : "");
       field.title = isFirst
         ? "Am Startpunkt dieser Richtung zählt der Aufenthalt nicht mit"
-        : "Aufenthalt in Sekunden – wirkt sofort auf alle Übergänge";
-      if (isFirst) { field.classList.add("idle"); }
+        : "Wartezeit an dieser Haltestelle – wirkt sofort auf alle Übergänge";
 
-      var apply = function (seconds) {
-        entry.dwell = Math.max(0, Math.round(seconds));
-        field.value = String(entry.dwell);
+      var minutes = document.createElement("input");
+      minutes.type = "number";
+      minutes.min = "0";
+      minutes.step = "1";
+      minutes.className = "secs";
+      minutes.setAttribute("data-pinfield", key + "-min");
+      minutes.setAttribute("aria-label",
+        dirs[key].label + ": Aufenthalt, Minuten");
+
+      var seconds = document.createElement("input");
+      seconds.type = "number";
+      seconds.min = "0";
+      seconds.step = "5";
+      seconds.className = "secs";
+      seconds.setAttribute("data-pinfield", key + "-sec");
+      seconds.setAttribute("aria-label",
+        dirs[key].label + ": Aufenthalt, Sekunden");
+
+      var show = function () {
+        minutes.value = String(Math.floor(entry.dwell / 60));
+        seconds.value = String(entry.dwell % 60);
+      };
+      show();
+
+      var readField = function (input) {
+        var parsed = parseInt(String(input.value).trim(), 10);
+        return (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+      };
+
+      var apply = function (seconds2) {
+        entry.dwell = Math.max(0, Math.round(seconds2));
+        show();
         refreshRows();
         renderSummary();
       };
 
-      trackEdit(field, "Aufenthalt geändert");
-      field.addEventListener("input", function () {
-        var parsed = parseInt(field.value, 10);
-        entry.dwell = (isNaN(parsed) || parsed < 0) ? 0 : parsed;
+      trackEdit(minutes, "Aufenthalt geändert");
+      trackEdit(seconds, "Aufenthalt geändert");
+
+      var onInput = function () {
+        entry.dwell = readField(minutes) * 60 + readField(seconds);
         refreshRows();
         renderSummary();
-      });
+      };
+      minutes.addEventListener("input", onInput);
+      seconds.addEventListener("input", onInput);
+
+      // Beim Verlassen aufräumen: 90 s werden zu 1 m 30 s.
+      minutes.addEventListener("blur", show);
+      seconds.addEventListener("blur", show);
+
+      field.appendChild(minutes);
+      field.appendChild(document.createTextNode("m"));
+      field.appendChild(seconds);
+      field.appendChild(document.createTextNode("s"));
 
       var minus = document.createElement("button");
       minus.type = "button";
@@ -5087,16 +5212,27 @@
 
       group.appendChild(minus);
       group.appendChild(field);
-      group.appendChild(document.createTextNode("s"));
       group.appendChild(plus);
       dwellRow.appendChild(group);
     });
 
     connPinned.appendChild(dwellRow);
 
-    // Übergänge dieser einen Haltestelle, beide Richtungen nebeneinander
+    // Übergänge dieser einen Haltestelle, beide Richtungen nebeneinander.
+    // Ohne Anschluss bleibt es bei der Aufenthaltszeit - das Panel wird
+    // dann nur um einen Hinweis ergänzt.
     var events = eventsAtPlace(place, plan);
     var list = connectionsOf(place);
+
+    if (list.length === 0) {
+      var none = document.createElement("div");
+      none.className = "pin-none";
+      none.textContent = "Für diese Haltestelle ist kein Anschluss hinterlegt – " +
+        "oben im Editor lässt sich einer anlegen.";
+      connPinned.appendChild(none);
+      restorePinFocus(focusState);
+      return;
+    }
 
     var table = document.createElement("table");
     table.className = "sheet conn compact";
@@ -5142,6 +5278,7 @@
 
     table.appendChild(tbody);
     connPinned.appendChild(table);
+    restorePinFocus(focusState);
   }
 
   function renderConnTables() {
@@ -5164,7 +5301,9 @@
       connEmpty.textContent = "Noch keine Anschlüsse hinterlegt – oben je Haltestelle anlegen.";
       connEmpty.hidden = false;
       connInfo.textContent = "";
-      renderPinned(null);
+      // Das Anheft-Panel bleibt trotzdem nutzbar: die Aufenthaltszeit
+      // lässt sich auch ohne einen einzigen Anschluss einstellen.
+      renderPinned(plan);
       return;
     }
 
@@ -5290,27 +5429,7 @@
           stopName.textContent = place.name.trim() || place.fallback;
           stopCell.appendChild(stopName);
 
-          var isPinned = pinnedPlaceId === place.id;
-          var pin = document.createElement("button");
-          pin.type = "button";
-          pin.className = "pinbtn";
-          pin.setAttribute("aria-pressed", isPinned ? "true" : "false");
-
-          var glyph = document.createElement("span");
-          glyph.className = "pinglyph";
-          glyph.textContent = isPinned ? "◆" : "◇";
-          pin.appendChild(glyph);
-          pin.appendChild(document.createTextNode(isPinned ? "Angeheftet" : "Anheften"));
-
-          pin.title = isPinned
-            ? "Haltestelle wieder lösen"
-            : "Diese Haltestelle anheften – oben erscheint sie mit beiden Richtungen " +
-              "und ihrer Aufenthaltszeit zum Ausprobieren";
-          pin.addEventListener("click", function () {
-            pinnedPlaceId = isPinned ? null : place.id;
-            renderConnTables();
-          });
-          stopCell.appendChild(pin);
+          stopCell.appendChild(makePinButton(place));
         }
 
         tr.appendChild(stopCell);
@@ -5855,6 +5974,7 @@
       opEnd: endTime,
       connMin: "2",
       connGood: "4",
+      wendeWarn: String(CONFIG.wendeWarnMinutes),
       places: placeList,
       out: outEntries,
       back: backEntries
@@ -6251,6 +6371,8 @@
   var calcUmlaufEl = document.getElementById("calcUmlauf");
   var calcVehiclesEl = document.getElementById("calcVehicles");
   var warnTakt = document.getElementById("warnTakt");
+  var warnWende = document.getElementById("warnWende");
+  var wendeWarnInput = document.getElementById("wendeWarn");
   var btnTaktrein = document.getElementById("btnTaktrein");
   var taktZielGroup = document.getElementById("taktZiel");
   var noTaktInput = document.getElementById("noTakt");
@@ -6308,6 +6430,60 @@
 
   function wendeSeconds(input) {
     return parseClock(input.value);
+  }
+
+  // Schwelle, ab der eine Wendezeit als ungewöhnlich lang gilt.
+  function wendeWarnSeconds() {
+    var value = parseInt(String(wendeWarnInput.value).trim(), 10);
+    if (isNaN(value) || value < 0) { value = CONFIG.wendeWarnMinutes; }
+    return value * 60;
+  }
+
+  // Was die Taktrein-Anpassung aus den Wendezeiten machen würde, ohne sie
+  // schon zu ändern - nur die Seiten, die der Ausgleich tatsächlich trifft.
+  function wendeVorschau(gap) {
+    var ziel = taktZielAuswahl();
+    var startSec = wendeSeconds(wendeStartInput);
+    var endSec = wendeSeconds(wendeEndInput);
+
+    if (ziel === "start") {
+      return [{ label: "Start-Wendezeit", seconds: startSec + gap }];
+    }
+
+    if (ziel === "both") {
+      var haelfte = Math.floor(gap / 2);
+      return [
+        { label: "Start-Wendezeit", seconds: startSec + haelfte },
+        { label: "Ziel-Wendezeit", seconds: endSec + (gap - haelfte) }
+      ];
+    }
+
+    return [{ label: "Ziel-Wendezeit", seconds: endSec + gap }];
+  }
+
+  // Hinweis, kein Verbot: der Knopf bleibt nutzbar. Er soll nur davor
+  // bewahren, aus einer Rechenlücke eine unrealistisch lange Wende zu
+  // machen - fürs Fahrzeug reicht der Puffer auch ohne Ausgleich.
+  function zeigeWendeHinweis(gap) {
+    var grenze = wendeWarnSeconds();
+    var zuLang = wendeVorschau(gap).filter(function (item) {
+      return item.seconds > grenze;
+    });
+
+    if (gap <= 0 || grenze <= 0 || zuLang.length === 0) {
+      warnWende.hidden = true;
+      return;
+    }
+
+    var wie = zuLang.map(function (item) {
+      return clock(item.seconds) + " (" + item.label + ")";
+    }).join(" und ");
+
+    warnWende.textContent = "Hinweis: Das ergäbe eine Wendezeit von " + wie +
+      " – das ist ungewöhnlich lang. Der reine Fahrzeugbedarf braucht diesen " +
+      "Ausgleich nicht zwingend, die Restzeit kann auch als normaler Puffer " +
+      "stehen bleiben. Der Knopf bleibt trotzdem nutzbar.";
+    warnWende.hidden = false;
   }
 
   function taktMinutes() {
@@ -6417,6 +6593,7 @@
     if (takt <= 0) {
       btnTaktrein.disabled = true;
       btnTaktrein.title = "Ohne Takt lässt sich nichts angleichen";
+      warnWende.hidden = true;
       calcVehiclesEl.textContent = "";
       var hint = document.createElement("span");
       hint.className = "lead";
@@ -6447,6 +6624,7 @@
     var rest = umlaufSec % taktSec;
     if (rest === 0 || umlaufSec === 0) {
       warnTakt.hidden = true;
+      warnWende.hidden = true;
       btnTaktrein.disabled = true;
       btnTaktrein.title = "Umlaufzeit ist bereits ein glattes Vielfaches des Taktes";
       return;
@@ -6468,8 +6646,11 @@
 
     if (quiet) {
       warnTakt.hidden = true;
+      warnWende.hidden = true;
       return;
     }
+
+    zeigeWendeHinweis(buffer);
 
     // Kürzen geht nur, soweit in den Wendezeiten überhaupt so viel steht.
     var canShorten = wendeTotalSec >= rest;
@@ -6893,6 +7074,8 @@
   [connMinInput, connGoodInput].forEach(function (input) {
     input.addEventListener("input", renderConnTables);
   });
+
+  wendeWarnInput.addEventListener("input", renderSummary);
 
   btnScenSave.addEventListener("click", saveScenario);
   btnScenLoad.addEventListener("click", loadScenario);
