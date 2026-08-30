@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    TurboMod - minimales MelonLoader-Test-Mod.
+
+    Bauen (Pfad anpassen):
+      dotnet build TurboMod.csproj -c Release -p:GamePath="A:\SteamLibrary\steamapps\common\Nomad Drive Demo"
+
+    Bequemer ueber den Treiber im uebergeordneten Ordner:
+      ..\03-build-turbomod.ps1 -GamePath "A:\SteamLibrary\steamapps\common\Nomad Drive Demo"
+
+    Flavor (Mono / Il2Cpp) wird anhand von GameAssembly.dll automatisch erkannt,
+    laesst sich aber mit -p:Flavor=Mono bzw. -p:Flavor=Il2Cpp erzwingen.
+  -->
+
+  <PropertyGroup>
+    <GamePath Condition="'$(GamePath)' == ''">A:\SteamLibrary\steamapps\common\Nomad Drive Demo</GamePath>
+
+    <Flavor Condition="'$(Flavor)' == '' And Exists('$(GamePath)\GameAssembly.dll')">Il2Cpp</Flavor>
+    <Flavor Condition="'$(Flavor)' == ''">Mono</Flavor>
+
+    <!-- MelonLoader legt seine Laufzeit je nach Version unter net6 oder net8 ab. -->
+    <MelonNetDir Condition="'$(MelonNetDir)' == '' And Exists('$(GamePath)\MelonLoader\net8')">$(GamePath)\MelonLoader\net8</MelonNetDir>
+    <MelonNetDir Condition="'$(MelonNetDir)' == '' And Exists('$(GamePath)\MelonLoader\net6')">$(GamePath)\MelonLoader\net6</MelonNetDir>
+
+    <Il2CppAsmDir Condition="'$(Il2CppAsmDir)' == '' And Exists('$(GamePath)\MelonLoader\Il2CppAssemblies')">$(GamePath)\MelonLoader\Il2CppAssemblies</Il2CppAsmDir>
+    <Il2CppAsmDir Condition="'$(Il2CppAsmDir)' == '' And Exists('$(GamePath)\MelonLoader\Managed')">$(GamePath)\MelonLoader\Managed</Il2CppAsmDir>
+
+    <TargetFramework Condition="'$(Flavor)' == 'Il2Cpp' And $(MelonNetDir.EndsWith('net8'))">net8.0</TargetFramework>
+    <TargetFramework Condition="'$(Flavor)' == 'Il2Cpp' And '$(TargetFramework)' == ''">net6.0</TargetFramework>
+    <!-- Mono-Unity-Spiele laufen fast immer mit .NET-4.x-Profil. Fuer sehr alte
+         Titel (Scripting Runtime 3.5) stattdessen -p:TargetFramework=net35 setzen. -->
+    <TargetFramework Condition="'$(Flavor)' == 'Mono' And '$(TargetFramework)' == ''">net472</TargetFramework>
+
+    <AssemblyName>TurboMod</AssemblyName>
+    <RootNamespace>TurboMod</RootNamespace>
+    <Version>0.1.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <DebugType>portable</DebugType>
+    <!-- Unity-/Il2Cpp-Assemblies erzeugen reichlich Rauschen -->
+    <NoWarn>$(NoWarn);CS0436;NU1701;MSB3277</NoWarn>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <!-- Referenzassemblies fuer .NET Framework, damit der Build auch ohne
+       installiertes Visual Studio / Targeting Pack funktioniert. -->
+  <ItemGroup Condition="'$(Flavor)' == 'Mono'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- ============================== MONO ============================== -->
+  <ItemGroup Condition="'$(Flavor)' == 'Mono'">
+    <Reference Include="$(GamePath)\MelonLoader\net35\MelonLoader.dll" Private="false" />
+    <Reference Include="$(GamePath)\MelonLoader\net35\0Harmony.dll" Private="false" Condition="Exists('$(GamePath)\MelonLoader\net35\0Harmony.dll')" />
+
+    <!-- Das Spielverzeichnis heisst <Spielname>_Data - per Wildcard eingebunden. -->
+    <Reference Include="$(GamePath)\*_Data\Managed\*.dll"
+               Exclude="$(GamePath)\*_Data\Managed\mscorlib.dll;$(GamePath)\*_Data\Managed\netstandard.dll;$(GamePath)\*_Data\Managed\System.dll;$(GamePath)\*_Data\Managed\System.*.dll;$(GamePath)\*_Data\Managed\Mono.*.dll;$(GamePath)\*_Data\Managed\Microsoft.*.dll;$(GamePath)\*_Data\Managed\0Harmony.dll"
+               Private="false" />
+  </ItemGroup>
+
+  <!-- ============================== IL2CPP ============================= -->
+  <ItemGroup Condition="'$(Flavor)' == 'Il2Cpp'">
+    <Reference Include="$(MelonNetDir)\MelonLoader.dll" Private="false" />
+    <Reference Include="$(MelonNetDir)\Il2CppInterop.Runtime.dll" Private="false" Condition="Exists('$(MelonNetDir)\Il2CppInterop.Runtime.dll')" />
+    <Reference Include="$(MelonNetDir)\Il2CppInterop.Common.dll" Private="false" Condition="Exists('$(MelonNetDir)\Il2CppInterop.Common.dll')" />
+    <Reference Include="$(MelonNetDir)\0Harmony.dll" Private="false" Condition="Exists('$(MelonNetDir)\0Harmony.dll')" />
+
+    <!-- Von Il2CppInterop beim ersten Spielstart erzeugt. -->
+    <Reference Include="$(Il2CppAsmDir)\*.dll"
+               Exclude="$(Il2CppAsmDir)\mscorlib.dll;$(Il2CppAsmDir)\netstandard.dll;$(Il2CppAsmDir)\System.dll;$(Il2CppAsmDir)\System.*.dll"
+               Private="false"
+               Condition="'$(Il2CppAsmDir)' != ''" />
+  </ItemGroup>
+
+  <!-- ===================== Verstaendliche Fehlermeldungen ===================== -->
+  <Target Name="PruefeVoraussetzungen" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(GamePath)')"
+           Text="GamePath '$(GamePath)' existiert nicht. Bitte mit -p:GamePath=&quot;...&quot; den Installationsordner angeben." />
+    <Error Condition="!Exists('$(GamePath)\MelonLoader')"
+           Text="In '$(GamePath)' liegt kein MelonLoader-Ordner. Zuerst 02-install-melonloader.ps1 ausfuehren." />
+    <Error Condition="'$(Flavor)' == 'Il2Cpp' And '$(MelonNetDir)' == ''"
+           Text="Weder MelonLoader\net6 noch MelonLoader\net8 gefunden - MelonLoader-Installation unvollstaendig." />
+    <Error Condition="'$(Flavor)' == 'Il2Cpp' And '$(Il2CppAsmDir)' == ''"
+           Text="Keine Il2Cpp-Interop-Assemblies gefunden. Das Spiel muss nach der MelonLoader-Installation EINMAL gestartet werden, damit MelonLoader\Il2CppAssemblies erzeugt wird." />
+    <Error Condition="'$(Flavor)' == 'Mono' And !Exists('$(GamePath)\MelonLoader\net35\MelonLoader.dll')"
+           Text="MelonLoader\net35\MelonLoader.dll fehlt - MelonLoader-Installation unvollstaendig." />
+    <Message Importance="high" Text="TurboMod: Flavor=$(Flavor), TargetFramework=$(TargetFramework), GamePath=$(GamePath)" />
+  </Target>
+
+</Project>
