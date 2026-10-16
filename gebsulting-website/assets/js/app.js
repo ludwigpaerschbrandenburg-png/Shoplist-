@@ -1,10 +1,10 @@
 (function () {
   "use strict";
 
-  var CFG = window.GEBSOULTING_CONFIG || {};
-  var DATA = window.GEBSOULTING_DATA || { deals: [], team: [], branchen: [] };
+  var CFG = window.GEBSULTING_CONFIG || {};
+  var DATA = window.GEBSULTING_DATA || { deals: [], team: [], kunden: [] };
   var VIEWS = ["start", "leistungen", "deals", "ueber-uns", "kontakt", "impressum", "datenschutz"];
-  var DRAFT_KEY = "gebsoulting-contact-draft";
+  var DRAFT_KEY = "gebsulting-contact-draft";
 
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -45,7 +45,7 @@
         '<p class="ts-party">' + esc(d.partei) + "</p>" +
         '<p class="ts-verb">' + esc(d.aktion) + "</p>" +
         (d.gegenpartei ? '<p class="ts-party ts-party-sm">' + esc(d.gegenpartei) + "</p>" : "") +
-        '<p class="ts-role">Gebsoulting: ' + esc(d.rolle) + "</p>" +
+        '<p class="ts-role">Gebsulting: ' + esc(d.rolle) + "</p>" +
         '<div class="ts-foot"><span>' + esc(d.branche) + "</span><span>" + esc(d.jahr) + "</span></div>" +
       "</article>"
     );
@@ -87,7 +87,7 @@
     apply("Alle");
 
     var ind = $("#industries");
-    if (ind) ind.innerHTML = DATA.branchen.map(function (b) { return "<li>" + esc(b) + "</li>"; }).join("");
+    if (ind) ind.innerHTML = DATA.kunden.map(function (b) { return "<li>" + esc(b) + "</li>"; }).join("");
   }
 
   /* ---------- Team ---------- */

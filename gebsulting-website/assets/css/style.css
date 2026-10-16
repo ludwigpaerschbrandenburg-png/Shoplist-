@@ -726,3 +726,33 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Manifesto ---------- */
+.manifesto { background: var(--band); color: var(--band-ink); }
+.manifesto-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-block: clamp(56px, 9vw, 112px);
+}
+.manifesto-line {
+  font: 700 var(--step-3)/1.1 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--band-muted);
+  text-wrap: balance;
+}
+.manifesto-strong { color: var(--band-ink); }
+.manifesto-name {
+  font-size: var(--step-5);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--brass);
+  margin-bottom: 28px;
+}
+
+@media (max-width: 560px) {
+  .person { flex-direction: row; align-items: flex-start; }
+  .person-avatar { flex: none; width: 84px; aspect-ratio: 1; font-size: 1.75rem; }
+}

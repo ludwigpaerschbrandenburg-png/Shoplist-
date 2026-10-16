@@ -1,12 +1,12 @@
 /*
- * Gebsoulting – zentrale Unternehmensdaten.
+ * Gebsulting – zentrale Unternehmensdaten.
  * Alles, was in eckigen Klammern steht, vor dem Livegang ersetzen.
  * Die Werte erscheinen automatisch überall auf der Seite (Kontakt, Footer, Impressum, Datenschutz).
  */
-window.GEBSOULTING_CONFIG = {
-  legalName: "Gebsoulting [Rechtsform, z. B. GmbH]",
-  representative: "[Vorname Nachname], Geschäftsführung",
-  email: "kontakt@gebsoulting.de",
+window.GEBSULTING_CONFIG = {
+  legalName: "Gebsulting [Rechtsform, z. B. GmbH]",
+  representative: "Paul Gebhardt (CEO)",
+  email: "kontakt@gebsulting.de",
   phone: "+49 [Vorwahl] [Nummer]",
   address: ["[Straße Hausnummer]", "[PLZ Ort]", "Deutschland"],
   hours: "Mo–Fr, 9–18 Uhr",
@@ -21,6 +21,6 @@ window.GEBSOULTING_CONFIG = {
    */
   formEndpoint: "",
 
-  // true zeigt den Hinweis "Platzhalter" bei Deals und Team. Auf false setzen, sobald echte Inhalte drin sind.
+  // true zeigt den Hinweis "Beispiel" bei Platzhalter-Deals. Auf false setzen, sobald echte Deals drin sind.
   showPlaceholderNotice: true
 };
