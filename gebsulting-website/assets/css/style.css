@@ -756,3 +756,121 @@ p { margin: 0; }
   .person { flex-direction: row; align-items: flex-start; }
   .person-avatar { flex: none; width: 84px; aspect-ratio: 1; font-size: 1.75rem; }
 }
+
+/* ---------- Team: Start-Leiste ---------- */
+.team-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.team-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  text-decoration: none;
+  min-width: 0;
+}
+.team-card-img {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  display: block;
+  margin-bottom: 12px;
+  border-bottom: 4px solid var(--brass);
+  filter: saturate(.9);
+  transition: filter .2s ease;
+}
+.team-card:hover .team-card-img { filter: saturate(1.05); }
+.team-card-name { font: 700 var(--step-2)/1.15 var(--font-display); letter-spacing: -0.02em; }
+.team-card:hover .team-card-name { color: var(--accent); }
+@media (max-width: 700px) {
+  .team-strip { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .team-card { display: grid; grid-template-columns: 112px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 16px; align-content: center; }
+  .team-card-img { grid-row: 1 / span 2; margin: 0; }
+  .team-card-name { align-self: end; }
+}
+
+/* ---------- Team: Profile (Über uns) ---------- */
+.section-team { padding-top: clamp(40px, 6vw, 72px); }
+.profiles { display: flex; flex-direction: column; gap: clamp(48px, 7vw, 96px); }
+.profile {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(24px, 5vw, 72px);
+  align-items: center;
+}
+.profile:nth-child(even) .profile-photo { order: 2; }
+.profile-photo { position: relative; margin: 0; max-width: 460px; width: 100%; }
+.profile:nth-child(even) .profile-photo { justify-self: end; }
+.profile-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  box-shadow: 14px 14px 0 var(--accent-soft);
+}
+.profile:nth-child(even) .profile-img { box-shadow: -14px 14px 0 var(--accent-soft); }
+.profile-no {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background: var(--brass);
+  color: var(--band);
+  font: 500 0.875rem/1 var(--font-mono);
+  padding: 10px 12px;
+  font-variant-numeric: tabular-nums;
+}
+.profile-text { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 560px; }
+.profile-name {
+  margin: 0;
+  font: 800 var(--step-4)/1 var(--font-display);
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.profile-text > p:last-child { font-size: var(--step-1); color: var(--muted); line-height: 1.5; }
+@media (max-width: 760px) {
+  .profile { grid-template-columns: minmax(0, 1fr); }
+  .profile:nth-child(even) .profile-photo { order: 0; justify-self: start; }
+  .profile-photo { max-width: 340px; }
+  .profile:nth-child(even) .profile-img { box-shadow: 14px 14px 0 var(--accent-soft); }
+}
+
+/* ---------- Fotos ---------- */
+.photo-feature { margin: clamp(32px, 5vw, 56px) 0 0; display: flex; flex-direction: column; gap: 12px; }
+.photo-feature img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 21 / 9;
+  object-fit: cover;
+  object-position: 50% 40%;
+}
+.photo-feature figcaption { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 0.95rem; }
+@media (max-width: 600px) { .photo-feature img { aspect-ratio: 4 / 3; } }
+
+.trophy { background: var(--band); color: var(--band-ink); }
+.trophy-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  padding-block: clamp(48px, 7vw, 88px);
+}
+.trophy-photo { margin: 0; position: relative; }
+.trophy-photo img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--band-muted);
+  outline: 1px solid var(--band-muted);
+  outline-offset: -10px;
+}
+.trophy-text { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; min-width: 0; }
+.trophy-text p:not(.eyebrow) { color: var(--band-muted); max-width: 46ch; }
+.trophy .btn-primary { background: var(--brass); color: var(--band); }
+.trophy .btn-primary:hover { background: var(--band-ink); color: var(--band); }
+@media (max-width: 800px) { .trophy-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Höhe aus dem Seitenverhältnis berechnen, nicht aus dem height-Attribut */
+.profile-img, .team-card-img, .photo-feature img, .trophy-photo img { height: auto; }

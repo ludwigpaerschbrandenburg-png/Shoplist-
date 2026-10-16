@@ -11,6 +11,8 @@
  *   rolle       – unsere Rolle
  *   branche, jahr – kurze Angaben für die Fußzeile der Karte
  *   platzhalter – true, solange es ein Beispiel-Eintrag ist
+ *
+ * Team: bild = Pfad zum Porträt (Hochformat 4:5, liegt in assets/img/).
  */
 window.GEBSULTING_DATA = {
   deals: [
@@ -70,16 +72,19 @@ window.GEBSULTING_DATA = {
     {
       name: "Paul Gebhardt",
       rolle: "CEO",
+      bild: "assets/img/paul-gebhardt.jpg",
       text: "Führt Gebsulting und verantwortet die Zusammenarbeit mit unseren Kunden von der ersten Vision bis zum Ergebnis."
     },
     {
       name: "Nils Jabusch",
       rolle: "Senior Project Advisor",
+      bild: "assets/img/nils-jabusch.jpg",
       text: "Begleitet unsere Projekte in der Umsetzung und sorgt dafür, dass aus Plänen messbare Ergebnisse werden."
     },
     {
       name: "Ludwig Paersch",
       rolle: "Junior Vision Development Consultant",
+      bild: "assets/img/ludwig-paersch.jpg",
       text: "Entwickelt gemeinsam mit unseren Kunden Visionen und übersetzt sie in konkrete Ziele."
     }
   ],

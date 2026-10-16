@@ -96,21 +96,46 @@
     if (!clean || clean.toLowerCase() === "name") return "G";
     return clean.split(/\s+/).map(function (p) { return p.charAt(0); }).slice(0, 2).join("").toUpperCase();
   }
+  function portrait(p, cls) {
+    if (p.bild) {
+      return '<img class="' + cls + '" src="' + esc(p.bild) + '" alt="Porträt von ' + esc(p.name) + '" loading="lazy" width="720" height="900">';
+    }
+    return '<div class="' + cls + ' person-avatar" aria-hidden="true">' + esc(initials(p.name)) + "</div>";
+  }
+
   function renderTeam() {
+    // Über uns: große Profile
     var el = $("#team");
-    if (!el) return;
-    el.innerHTML = DATA.team.map(function (p) {
-      return (
-        '<article class="person">' +
-          '<div class="person-avatar" aria-hidden="true">' + esc(initials(p.name)) + "</div>" +
-          "<div>" +
-            '<h3 class="h4">' + esc(p.name) + (p.platzhalter && CFG.showPlaceholderNotice ? ' <span class="chip-example chip-inline">Platzhalter</span>' : "") + "</h3>" +
-            '<p class="person-role">' + esc(p.rolle) + "</p>" +
-            "<p>" + esc(p.text) + "</p>" +
-          "</div>" +
-        "</article>"
-      );
-    }).join("");
+    if (el) {
+      el.innerHTML = DATA.team.map(function (p, i) {
+        return (
+          '<article class="profile">' +
+            '<figure class="profile-photo">' + portrait(p, "profile-img") +
+              '<span class="profile-no" aria-hidden="true">' + String(i + 1).padStart(2, "0") + "</span>" +
+            "</figure>" +
+            '<div class="profile-text">' +
+              '<p class="person-role">' + esc(p.rolle) + "</p>" +
+              '<h3 class="profile-name">' + esc(p.name) + "</h3>" +
+              "<p>" + esc(p.text) + "</p>" +
+            "</div>" +
+          "</article>"
+        );
+      }).join("");
+    }
+
+    // Startseite: kompakte Team-Leiste
+    var teaser = $("#team-teaser");
+    if (teaser) {
+      teaser.innerHTML = DATA.team.map(function (p) {
+        return (
+          '<a class="team-card" href="#ueber-uns">' +
+            portrait(p, "team-card-img") +
+            '<span class="team-card-name">' + esc(p.name) + "</span>" +
+            '<span class="person-role">' + esc(p.rolle) + "</span>" +
+          "</a>"
+        );
+      }).join("");
+    }
   }
 
   /* ---------- Navigation (Hash-Routing) ---------- */
