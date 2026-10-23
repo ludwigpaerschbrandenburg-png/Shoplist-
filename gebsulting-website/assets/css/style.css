@@ -874,3 +874,6 @@ p { margin: 0; }
 
 /* Höhe aus dem Seitenverhältnis berechnen, nicht aus dem height-Attribut */
 .profile-img, .team-card-img, .photo-feature img, .trophy-photo img { height: auto; }
+
+.send-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.send-alt { font-size: 0.95rem; color: var(--muted); }

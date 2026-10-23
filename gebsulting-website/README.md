@@ -30,7 +30,8 @@ Sobald echte Deals und Teamdaten drin sind, in `config.js` `showPlaceholderNotic
 
 ## Kontaktformular
 
-- Ohne weitere Einrichtung öffnet das Formular eine fertig ausgefüllte E-Mail an die Adresse aus `config.js`
+- Ohne weitere Einrichtung erscheinen nach dem Ausfüllen Knöpfe (Gmail, Outlook, E-Mail-Programm, optional WhatsApp),
+  die die fertige Nachricht an die Adresse aus `config.js` öffnen. Das funktioniert überall, auch im Artefakt-Link,
   und zeigt die Nachricht zusätzlich zum Kopieren an.
 - Für direkten Versand ohne E-Mail-Programm einen Formular-Dienst anbinden (z. B. Formspree oder Web3Forms)
   und dessen URL in `config.js` bei `formEndpoint` eintragen.

@@ -337,25 +337,32 @@
         return;
       }
 
-      // Ohne Formular-Dienst: vorbereitete E-Mail öffnen
+      // Ohne Formular-Dienst: fertige Nachricht über Webmail, E-Mail-Programm oder WhatsApp absenden.
+      // Alles sind normale Links (neuer Tab), damit es überall funktioniert, auch in der Vorschau.
       var subject = "Website-Anfrage: " + form.elements.topic.value;
-      var href = "mailto:" + encodeURIComponent(CFG.email) +
-        "?subject=" + encodeURIComponent(subject) +
-        "&body=" + encodeURIComponent(text);
-      var a = document.createElement("a");
-      a.href = href;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      var to = encodeURIComponent(CFG.email);
+      var su = encodeURIComponent(subject);
+      var bo = encodeURIComponent(text);
+      var links = [
+        { label: "Mit Gmail senden", href: "https://mail.google.com/mail/?view=cm&fs=1&to=" + to + "&su=" + su + "&body=" + bo, primary: true },
+        { label: "Mit Outlook senden", href: "https://outlook.live.com/mail/0/deeplink/compose?to=" + to + "&subject=" + su + "&body=" + bo },
+        { label: "Mit E-Mail-Programm senden", href: "mailto:" + to + "?subject=" + su + "&body=" + bo }
+      ];
+      if (CFG.whatsapp) {
+        links.push({ label: "Per WhatsApp senden", href: "https://wa.me/" + String(CFG.whatsapp).replace(/\D/g, "") + "?text=" + encodeURIComponent(subject + "\n\n" + text) });
+      }
 
       showStatus("info",
-        "<p><strong>Fast geschafft.</strong> Wir haben Ihre Nachricht als E-Mail vorbereitet. Senden Sie sie in Ihrem E-Mail-Programm ab.</p>" +
-        "<p>Falls sich kein E-Mail-Programm geöffnet hat, kopieren Sie die Nachricht und senden Sie sie an " +
+        "<p><strong>Letzter Schritt: Anfrage absenden.</strong> Wählen Sie, womit Sie die vorbereitete Nachricht verschicken möchten. Sie öffnet sich fertig ausgefüllt, Sie müssen nur noch auf „Senden“ klicken.</p>" +
+        "<div class=\"send-options\">" + links.map(function (l) {
+          return "<a class=\"btn " + (l.primary ? "btn-primary" : "btn-ghost") + "\" href=\"" + esc(l.href) + "\" target=\"_blank\" rel=\"noopener\">" + esc(l.label) + "</a>";
+        }).join("") + "</div>" +
+        "<p class=\"send-alt\">Oder kopieren Sie die Nachricht und schicken Sie sie selbst an " +
         "<span class=\"copyable\" id=\"cf-mail-addr\">" + esc(CFG.email) + "</span> " +
         "<button class=\"copy-btn\" type=\"button\" data-copy-cfg=\"email\">Adresse kopieren</button></p>" +
         "<pre class=\"mail-preview\" id=\"cf-mail-text\">" + esc(text) + "</pre>" +
         "<button class=\"copy-btn\" type=\"button\" data-copy-target=\"#cf-mail-text\">Nachricht kopieren</button>");
+      clearDraft();
     });
   }
 
